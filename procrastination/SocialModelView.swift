@@ -630,10 +630,10 @@ struct GroupGoal: Identifiable, Codable, Equatable {
                 
                 // Stats
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text("完成 \(Int(member.completionRate * 100))%")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
+//                    Text("完成 \(Int(member.completionRate * 100))%")
+//                        .font(.subheadline)
+//                        .fontWeight(.semibold)
+//                        .foregroundColor(.primary)
                     
                     Text("一起慢慢推進 ✨")
                         .font(.caption)
@@ -724,12 +724,12 @@ struct GroupGoal: Identifiable, Codable, Equatable {
                         Spacer()
                     }
                     
-                    Text(member.procrastinationTypeTag)
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color(.systemGray5))
-                        .cornerRadius(4)
+//                    Text(member.procrastinationTypeTag)
+//                        .font(.caption)
+//                        .padding(.horizontal, 6)
+//                        .padding(.vertical, 2)
+//                        .background(Color(.systemGray5))
+//                        .cornerRadius(4)
                 }
                 
                 Spacer()

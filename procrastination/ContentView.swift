@@ -30,7 +30,7 @@ struct ContentView: View {
                         await SupabaseRepository.shared.smokeInsertUserProfilesMinimal()
                     }
             }
-        }
+        }.id(store.language)
         // ⛔️ 這裡原本的 .onAppear + switchUser 已經移除
     }
 

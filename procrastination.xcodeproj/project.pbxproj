@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		353794F02EDD8B3900175F7D /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 353794EF2EDD8B3900175F7D /* MarkdownUI */; };
 		3598DCAF2EAA3B2C00FA4931 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3598DCAE2EAA3B2C00FA4931 /* GoogleService-Info.plist */; };
 		3598DCC42EAA42DD00FA4931 /* FirebaseAI in Frameworks */ = {isa = PBXBuildFile; productRef = 3598DCC32EAA42DD00FA4931 /* FirebaseAI */; };
 		3598DCC62EAA448400FA4931 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 3598DCC52EAA448400FA4931 /* FirebaseAnalytics */; };
@@ -36,6 +37,7 @@
 				C88F0EBA2EC2612400B4B365 /* BCrypt in Frameworks */,
 				C88F0E812EBB277500B4B365 /* Supabase in Frameworks */,
 				C88F0E7F2EBB277500B4B365 /* PostgREST in Frameworks */,
+				353794F02EDD8B3900175F7D /* MarkdownUI in Frameworks */,
 				3598DCC62EAA448400FA4931 /* FirebaseAnalytics in Frameworks */,
 				3598DCC42EAA42DD00FA4931 /* FirebaseAI in Frameworks */,
 			);
@@ -86,6 +88,7 @@
 				C88F0E7E2EBB277500B4B365 /* PostgREST */,
 				C88F0E802EBB277500B4B365 /* Supabase */,
 				C88F0EB92EC2612400B4B365 /* BCrypt */,
+				353794EF2EDD8B3900175F7D /* MarkdownUI */,
 			);
 			productName = procrastination;
 			productReference = 355345C02E99404F0061DD43 /* procrastination.app */;
@@ -119,6 +122,7 @@
 				3598DCC22EAA42DD00FA4931 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				C88F0E7D2EBB277500B4B365 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				C88F0EB82EC2612400B4B365 /* XCRemoteSwiftPackageReference "bcrypt" */,
+				353794EE2EDD8B3900175F7D /* XCRemoteSwiftPackageReference "MarkdownUI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 355345C12E99404F0061DD43 /* Products */;
@@ -357,6 +361,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		353794EE2EDD8B3900175F7D /* XCRemoteSwiftPackageReference "MarkdownUI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/MarkdownUI";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.1;
+			};
+		};
 		3598DCC22EAA42DD00FA4931 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
@@ -384,6 +396,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		353794EF2EDD8B3900175F7D /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 353794EE2EDD8B3900175F7D /* XCRemoteSwiftPackageReference "MarkdownUI" */;
+			productName = MarkdownUI;
+		};
 		3598DCC32EAA42DD00FA4931 /* FirebaseAI */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3598DCC22EAA42DD00FA4931 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;

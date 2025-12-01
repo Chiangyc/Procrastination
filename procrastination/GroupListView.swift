@@ -89,7 +89,7 @@ struct GroupListView: View {
                                 // ✅ 上面：進行中 / 已結束 切換
                                 Picker("狀態", selection: $statusFilter) {
                                     ForEach(GroupStatusFilter.allCases) { s in
-                                        Text(s.title).tag(s)
+                                        Text(LocalizedStringKey(s.title)).tag(s)
                                     }
                                 }
                                 .pickerStyle(.segmented)
