@@ -1,4 +1,4 @@
-// SupabaseRepository.swift
+//  SupabaseRepository.swift
 import Foundation
 import Supabase
 import PostgREST
@@ -19,7 +19,6 @@ struct AnyEncodable: Encodable {
     static func int(_ value: Int) -> AnyEncodable { AnyEncodable(value) }
     static func double(_ value: Double) -> AnyEncodable { AnyEncodable(value) }
 }
-
 
 enum SupabaseRepoError: Error {
     case noAuthSession
@@ -142,7 +141,7 @@ struct DBUserProfileRow: Codable {
     let workstyle: WorkstyleDTO?
     let onboarding: OnboardingDTO?
     let activity: ActivityDTO?
-    let achievements: [String]?    // 先用字串清單，如果你未來要更多欄位再拆表
+    let achievements: [String]?
     let updated_at: String?
 }
 
@@ -155,8 +154,6 @@ final class SupabaseRepository {
     private let db: SupabaseClient = SupabaseManager.shared.client
 
     // 取得目前的使用者 UUID
-    // - 若已登入 Supabase Auth，優先用 auth.user.id
-    // - 否則回退到 DevUser.id（本機測試用）
     private func currentUID() async throws -> UUID {
         do {
             let session = try await db.auth.session
@@ -166,10 +163,7 @@ final class SupabaseRepository {
         }
     }
 
-
-
-    // 確保 users 表有這個 dev user（或 auth user）
-    // 確保 users 表有這個 dev user（或 auth user）
+    // 確保 users 表有這個 user
     func ensureUserRowExistsIfNeeded(displayName: String? = "Dev User", email: String? = nil) async {
         struct UserRow: Encodable { let id: UUID; let email: String?; let display_name: String? }
         do {
@@ -181,9 +175,7 @@ final class SupabaseRepository {
         }
     }
 
-
-
-    // 開發用：最小 smoke 測試（避免複雜 JSON 先擾亂）
+    // 開發用：最小 smoke 測試
     func smokeInsertUserProfilesMinimal() async {
         do {
             let uid = try await currentUID()
@@ -193,9 +185,9 @@ final class SupabaseRepository {
             ]
             let resp = try await db
                 .from("user_profiles")
-                .insert(mini)   // 只插兩欄
-                .select()       // 選回插入列
-                .single()       // 注意：若 RLS/constraint 阻擋會 throw
+                .insert(mini)
+                .select()
+                .single()
                 .execute()
             print("[SMOKE] insert OK bytes:", resp.data.count)
             print("[SMOKE] body:", String(data: resp.data, encoding: .utf8) ?? "<non-utf8>")
@@ -280,7 +272,7 @@ final class SupabaseRepository {
             throw error
         }
 
-        // 連同訊息一起上傳（避免忘記另外呼叫）
+        // messages 一起上傳
         for m in c.messages {
             try await upsertMessage(m, conversationId: c.id)
         }
@@ -302,11 +294,9 @@ final class SupabaseRepository {
         }
     }
 
-    // user_profiles：把 AppStore 的使用者層級資料一次上傳
     func upsertUserProfile(from store: AppStore) async throws {
         let uid = try await currentUID()
 
-        // 1) 把 enum 轉成 String
         let pref = PreferencesDTO(
             longTask: store.preferences.longTask.rawValue,
             arrangeStrategy: store.preferences.arrangeStrategy.rawValue,
@@ -330,7 +320,6 @@ final class SupabaseRepository {
         )
         let achievementTitles: [String] = store.achievements.map { $0.title }
 
-        // 2) updated_at 寫入，方便在後台看更新時間
         let row = DBUserProfileRow(
             user_id: uid,
             has_onboarded: store.hasOnboarded,
@@ -343,7 +332,6 @@ final class SupabaseRepository {
             updated_at: toISO8601String(Date())
         )
 
-        // 3) onConflict: "user_id"（存在則更新，不存在則插入）
         do {
             try await db
                 .from("user_profiles")
@@ -471,7 +459,6 @@ final class SupabaseRepository {
 
     // MARK: - 批次：一次抓／一次推
 
-    /// 從雲端抓回全部（Goals 附 Tasks、Conversations 附 Messages）
     func fetchAll() async throws -> (goals: [Goal], moods: [MoodRecord], conversations: [ChatThread], profile: DBUserProfileRow?) {
         var goals = try await fetchGoals()
         for i in goals.indices {
@@ -490,12 +477,10 @@ final class SupabaseRepository {
         return (goals, moods, convos, profile)
     }
 
-    /// 把本地的所有資料一次上傳（含 subtasks / messages / profile）
     func pushAll(from store: AppStore) async throws {
-        // ✅ 1. 一進來就檢查有沒有登入
-        let uid: UUID
+        let _: UUID
         do {
-            uid = try await currentUID()
+            _ = try await currentUID()
         } catch {
             print("❌ pushAll: no auth session, skip cloud sync")
             throw error
@@ -503,30 +488,25 @@ final class SupabaseRepository {
 
         await ensureUserRowExistsIfNeeded(displayName: "App User")
 
-
-        // user profile 先上傳（避免沒有 profile 的情況）
         try await upsertUserProfile(from: store)
 
-        // goals + tasks
         for g in store.goals {
             try await upsertGoal(g)
         }
 
-        // moods
         for m in store.moods {
             try await upsertMood(m)
         }
 
-        // conversations + messages
         for c in store.conversations {
-            try await upsertConversation(c) // 會順帶上傳 messages
+            try await upsertConversation(c)
         }
     }
 }
+
 // MARK: - Group Goals（社群任務，多人合作/競爭）
 extension SupabaseRepository {
 
-    // 對應 Supabase 的 group_goals
     struct GroupGoalRow: Codable {
         var id: UUID
         var title: String
@@ -538,9 +518,12 @@ extension SupabaseRepository {
         var social_mode: String    // "cooperate" / "compete"
         var creator_id: UUID
         var created_at: String?    // ISO8601
+
+        // ✅ 方便在別處直接看模式
+        var isCooperation: Bool { social_mode == "cooperate" }
+        var isCompetition: Bool { social_mode == "compete" }
     }
 
-    // 對應 Supabase 的 group_participants
     struct GroupParticipantRow: Codable {
         var id: UUID
         var group_id: UUID
@@ -551,7 +534,7 @@ extension SupabaseRepository {
         var joined_at: String?     // ISO8601
     }
 
-    // ⭐ 1) 建立 group goal + participants
+    // 1) 建立 group goal + participants
     func createGroupGoal(
         groupId: UUID,
         title: String,
@@ -566,7 +549,6 @@ extension SupabaseRepository {
         participantEmails: [String]
     ) async throws {
 
-        // ---- A. 建立 group_goals 的一列 ----
         let groupRow = GroupGoalRow(
             id: groupId,
             title: title,
@@ -585,14 +567,16 @@ extension SupabaseRepository {
             .insert(groupRow)
             .execute()
 
-        // ---- B. 建立 group_participants 多列 ----
-        let rows: [GroupParticipantRow] = participantEmails.map { email in
-            GroupParticipantRow(
+        let ownerLower = ownerEmail.lowercased()
+
+        let rows: [GroupParticipantRow] = participantEmails.map { rawEmail in
+            let email = rawEmail.lowercased()
+            return GroupParticipantRow(
                 id: UUID(),
                 group_id: groupId,
-                user_id: nil, // 之後可以用 email → user_id mapping 再補
+                user_id: nil,
                 email: email,
-                role: (email == ownerEmail ? "owner" : "member"),
+                role: (email == ownerLower ? "owner" : "member"),
                 progress: 0,
                 joined_at: toISO8601String(Date())
             )
@@ -606,14 +590,16 @@ extension SupabaseRepository {
         print("🍏 Successfully created group_goal + participants")
     }
 
-    // ⭐ 2) 抓這個 email 參與的所有 group_goals
+
+    // 2) 抓這個 email 參與的所有 group_goals
     func fetchGroupGoals(forEmail email: String) async throws -> [GroupGoalRow] {
 
-        // 先從 group_participants 找出所有 group_id
+        let lower = email.lowercased()
+
         let participantResp = try await db
             .from("group_participants")
             .select()
-            .eq("email", value: email)
+            .eq("email", value: lower)
             .execute()
 
         let participants = try JSONDecoder().decode(
@@ -624,7 +610,6 @@ extension SupabaseRepository {
         let groupIds = participants.map { $0.group_id }
         if groupIds.isEmpty { return [] }
 
-        // 再用這些 group_id 去 group_goals 抓資料
         let goalsResp = try await db
             .from("group_goals")
             .select()
@@ -639,7 +624,8 @@ extension SupabaseRepository {
         return goals
     }
 
-    // ⭐ 3) 抓某個 group 的所有成員
+
+    // 3) 抓某個 group 的所有成員
     func fetchParticipants(groupId: UUID) async throws -> [GroupParticipantRow] {
         let resp = try await db
             .from("group_participants")
@@ -654,8 +640,64 @@ extension SupabaseRepository {
 
         return rows
     }
+    
+    /// 依 group_id 把成員從 group_participants 轉成 [SocialMember]
+    func fetchMembers(forGroupId groupId: UUID) async throws -> [SocialMember] {
+        // 1) 拿目前登入者的 email，用來標記 isCurrentUser
+        let session = try await db.auth.session
+        let myEmail = (session.user.email ?? "").lowercased()
 
-    // ⭐ 4) 更新某個成員在 group 中的 progress
+        // 2) 先用既有的 fetchParticipants 抓 raw 資料
+        let participants = try await fetchParticipants(groupId: groupId)
+
+        // 3) avatar 顏色輪播
+        let colors = [
+            "#FF6B6B", "#4ECDC4", "#45B7D1",
+            "#FFA07A", "#98D8C8", "#F7DC6F",
+            "#BB8FCE", "#85C1E2"
+        ]
+
+        // 4) 映射成 SocialMember
+        return participants.enumerated().map { index, p in
+            let email = p.email.lowercased()
+            let name = p.email.split(separator: "@").first.map(String.init) ?? p.email
+            let color = colors[index % colors.count]
+            let isMe = (email == myEmail)
+
+            let raw = p.progress ?? 0.0
+
+            // 向下相容：
+            // - raw > 1: 舊版當作「分數 0~1000」
+            // - raw <= 1: 當作新的「比例 0~1」
+            let completionRate: Double
+            let score: Int
+
+            if raw > 1 {
+                score = Int(raw)
+                completionRate = min(max(raw / 1000.0, 0), 1)   // 142 -> 0.142
+            } else {
+                completionRate = min(max(raw, 0), 1)
+                score = Int(completionRate * 1000)
+            }
+
+            return SocialMember(
+                id: p.id,
+                userId: p.user_id?.uuidString ?? "",
+                displayName: name,
+                avatarColorHex: color,
+                procrastinationType: .unknown,
+                completedGroupTasks: 0,
+                contributedValue: 0,
+                score: score,
+                streakDays: 0,
+                isCurrentUser: isMe,
+                completionRate: completionRate
+            )
+        }
+    }
+
+
+    // 4) 更新某個成員在 group 中的 progress（0~1 或 0~1000，都可以，邏輯在上層轉）
     func updateParticipantProgress(
         _ progress: Double,
         groupId: UUID,
@@ -671,4 +713,52 @@ extension SupabaseRepository {
     }
 }
 
+extension SupabaseRepository {
 
+    func updateGroupParticipantProgress(
+        groupId: UUID,
+        email: String,
+        progress: Double
+    ) async throws {
+
+        let payload: [String: AnyEncodable] = [
+            "progress": AnyEncodable(progress)
+        ]
+
+        print("➡️ [updateGroupParticipantProgress] groupId=\(groupId), email=\(email), progress=\(progress)")
+
+        let response = try await db
+            .from("group_participants")
+            .update(payload)
+            .eq("group_id", value: groupId.uuidString)
+            .eq("email", value: email)
+            .execute()
+
+        print("✅ [updateGroupParticipantProgress] response: \(response)")
+    }
+}
+
+extension SupabaseRepository {
+
+    /// 取得目前使用者參與的所有 group goals
+    func fetchAllGroupGoalsForCurrentUser() async throws -> [GroupGoalRow] {
+
+        // 1) 拿 session
+        let session = try await db.auth.session
+
+        guard let emailRaw = session.user.email, !emailRaw.isEmpty else {
+            print("⚠️ fetchAllGroupGoalsForCurrentUser: User has no email")
+            return []
+        }
+
+        let email = emailRaw.lowercased()
+
+        // 2) 使用既有 API 抓 group goals
+        let rows = try await fetchGroupGoals(forEmail: email)
+
+        print("📥 fetchAllGroupGoalsForCurrentUser: got \(rows.count) groups")
+
+        return rows
+    }
+
+}

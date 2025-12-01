@@ -1,31 +1,13 @@
 //  SocialModeView.swift
 
+//
+//  SocialModeView.swift
+//
+
 import SwiftUI
 import Supabase
 
-// MARK: - Social Models（不再宣告 SocialMode）
-
-struct GroupGoal: Identifiable, Codable, Equatable {
-    var id: UUID
-    var title: String
-    var description: String
-    var targetValue: Int
-    var currentValue: Int
-    var unit: String
-    var deadline: Date
-
-    var progress: Double {
-        guard targetValue > 0 else { return 0 }
-        return min(Double(currentValue) / Double(targetValue), 1.0)
-    }
-
-    var daysRemaining: Int {
-        let calendar = Calendar.current
-        let now = Date()
-        let days = calendar.dateComponents([.day], from: now, to: deadline).day ?? 0
-        return max(0, days)
-    }
-}
+// MARK: - Models
 
 struct SocialMember: Identifiable, Equatable, Codable {
     var id: UUID
@@ -38,6 +20,7 @@ struct SocialMember: Identifiable, Equatable, Codable {
     var score: Int
     var streakDays: Int
     var isCurrentUser: Bool
+    var completionRate: Double    // 0.0 ~ 1.0，合作模式用
 
     var avatarInitial: String {
         String(displayName.prefix(1)).uppercased()
@@ -50,669 +33,741 @@ struct SocialMember: Identifiable, Equatable, Codable {
             return "完美"
         } else if typeRaw.contains("死線") || typeRaw.contains("戰士") {
             return "死線"
-        } else if typeRaw.contains("逃避") {
-            return "逃避"
-        } else if typeRaw.contains("決策") {
-            return "決策"
         } else {
             return "未知"
         }
     }
 }
 
-// MARK: - Repository Protocol
-
-protocol SocialGroupRepository {
-    func fetchCurrentGroupGoal() async throws -> GroupGoal
-    func fetchMembers() async throws -> [SocialMember]
-}
-
-// MARK: - Supabase Repository 實作（正式用）
-
-final class SupabaseSocialGroupRepository: SocialGroupRepository {
-    private let repo = SupabaseRepository.shared
-    private let client = SupabaseManager.shared.client
-
-    // 解析 yyyy-MM-dd 或 ISO8601 的小工具
-    private static let yyyyMMdd: DateFormatter = {
-        let df = DateFormatter()
-        df.calendar = Calendar(identifier: .gregorian)
-        df.locale = Locale(identifier: "en_US_POSIX")
-        df.timeZone = TimeZone(secondsFromGMT: 0)
-        df.dateFormat = "yyyy-MM-dd"
-        return df
-    }()
-
-    private static func parseDate(_ s: String?) -> Date? {
-        guard let s, !s.isEmpty else { return nil }
-        if let d = yyyyMMdd.date(from: s) {
-            return d
-        }
-        if let d = ISO8601DateFormatter().date(from: s) {
-            return d
-        }
-        return nil
+struct GroupGoal: Identifiable, Codable, Equatable {
+    var id: UUID
+    var title: String
+    var description: String
+    var targetValue: Int
+    var currentValue: Int
+    var unit: String
+    var deadline: Date
+    var socialModeRaw: String        // "cooperate" / "compete" 或 "cooperation" / "competition"
+    
+    // 合作 / 競爭模式判斷（兼容兩種字串）
+    var isCooperation: Bool {
+        let v = socialModeRaw.lowercased()
+        return v == "cooperate" || v == "cooperation"
     }
-
-    func fetchCurrentGroupGoal() async throws -> GroupGoal {
-        // 先從 Supabase Auth 拿當前使用者 email
-        let session = try await client.auth.session
-        let email = session.user.email ?? ""
-
-        // 抓這個 email 參與的所有 group_goals
-        let rows = try await repo.fetchGroupGoals(forEmail: email)
-
-        guard let row = rows.first else {
-            throw NSError(
-                domain: "Social",
-                code: 404,
-                userInfo: [NSLocalizedDescriptionKey: "No group goals found"]
-            )
-        }
-
-        let deadlineDate = Self.parseDate(row.deadline) ?? Date()
-        let desc = row.description ?? ""
-
-        // ⚠️ 目前 group_goals table 還沒有 target / current / unit 欄位
-        // 先給一組 placeholder，未來你加欄位後再調整 mapping
-        return GroupGoal(
-            id: row.id,
-            title: row.title,
-            description: desc.isEmpty ? "No description yet." : desc,
-            targetValue: 100,
-            currentValue: 0,
-            unit: "%",
-            deadline: deadlineDate
-        )
+    
+    var isCompetition: Bool {
+        let v = socialModeRaw.lowercased()
+        return v == "compete" || v == "competition"
     }
-
-    func fetchMembers() async throws -> [SocialMember] {
-        let session = try await client.auth.session
-        let myEmail = session.user.email ?? ""
-
-        // 一樣先找這個人參與的 group_goals
-        let rows = try await repo.fetchGroupGoals(forEmail: myEmail)
-        guard let row = rows.first else {
-            return []
-        }
-
-        // 再抓這個 group 的所有 participants
-        let participants = try await repo.fetchParticipants(groupId: row.id)
-
-        let colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E2"]
-
-        return participants.enumerated().map { index, p in
-            let email = p.email
-            let name = email.split(separator: "@").first.map(String.init) ?? email
-            let color = colors[index % colors.count]
-            let isMe = (email == myEmail)
-            let progress = p.progress ?? 0
-
-            return SocialMember(
-                id: p.id,
-                userId: p.user_id?.uuidString ?? "",
-                displayName: name,
-                avatarColorHex: color,
-                procrastinationType: .unknown,          // 之後可從 user_profiles 接進來
-                completedGroupTasks: Int(progress),     // 暫時用 progress 當假資料
-                contributedValue: Int(progress),
-                score: Int(progress),
-                streakDays: 0,
-                isCurrentUser: isMe
-            )
-        }
+    
+    // 進度 0~1
+    var progress: Double {
+        guard targetValue > 0 else { return 0 }
+        return min(Double(currentValue) / Double(targetValue), 1.0)
+    }
+    
+    // 剩餘天數：以「日期」計，不吃小時
+    var daysRemaining: Int {
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfDeadline = calendar.startOfDay(for: deadline)
+        let comps = calendar.dateComponents([.day], from: startOfToday, to: startOfDeadline)
+        return max(0, comps.day ?? 0)
+    }
+    
+    /// ✅ 判斷是否已結束：deadline 在今天之前的才算結束
+    var isFinished: Bool {
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfDeadline = calendar.startOfDay(for: deadline)
+        return startOfDeadline < startOfToday
     }
 }
+    // MARK: - Supabase Repository（正式用）
 
-// MARK: - Mock Repository（Preview / 假資料用）
-
-final class MockSocialGroupRepository: SocialGroupRepository {
-    func fetchCurrentGroupGoal() async throws -> GroupGoal {
-        try await Task.sleep(nanoseconds: 500_000_000)
-
-        return GroupGoal(
-            id: UUID(),
-            title: "本週共同目標：累積 600 分鐘專注時間",
-            description: "大家一起努力，在下週五之前完成通識課的讀書心得報告",
-            targetValue: 600,
-            currentValue: 390,
-            unit: "分鐘",
-            deadline: Calendar.current.date(byAdding: .day, value: 5, to: Date()) ?? Date()
-        )
-    }
-
-    func fetchMembers() async throws -> [SocialMember] {
-        try await Task.sleep(nanoseconds: 500_000_000)
-
-        let colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E2"]
-
-        return [
-            SocialMember(
-                id: UUID(),
-                userId: "user1",
-                displayName: "小明",
-                avatarColorHex: colors[0],
-                procrastinationType: .unknown,
-                completedGroupTasks: 12,
-                contributedValue: 95,
-                score: 120,
-                streakDays: 5,
-                isCurrentUser: true
-            ),
-            SocialMember(
-                id: UUID(),
-                userId: "user2",
-                displayName: "小華",
-                avatarColorHex: colors[1],
-                procrastinationType: .unknown,
-                completedGroupTasks: 15,
-                contributedValue: 110,
-                score: 150,
-                streakDays: 7,
-                isCurrentUser: false
-            ),
-            SocialMember(
-                id: UUID(),
-                userId: "user3",
-                displayName: "小美",
-                avatarColorHex: colors[2],
-                procrastinationType: .unknown,
-                completedGroupTasks: 8,
-                contributedValue: 65,
-                score: 80,
-                streakDays: 3,
-                isCurrentUser: false
-            ),
-            SocialMember(
-                id: UUID(),
-                userId: "user4",
-                displayName: "小強",
-                avatarColorHex: colors[3],
-                procrastinationType: .unknown,
-                completedGroupTasks: 10,
-                contributedValue: 80,
-                score: 100,
-                streakDays: 4,
-                isCurrentUser: false
-            ),
-            SocialMember(
-                id: UUID(),
-                userId: "user5",
-                displayName: "小雯",
-                avatarColorHex: colors[4],
-                procrastinationType: .unknown,
-                completedGroupTasks: 9,
-                contributedValue: 70,
-                score: 90,
-                streakDays: 6,
-                isCurrentUser: false
-            ),
-            SocialMember(
-                id: UUID(),
-                userId: "user6",
-                displayName: "小傑",
-                avatarColorHex: colors[5],
-                procrastinationType: .unknown,
-                completedGroupTasks: 6,
-                contributedValue: 50,
-                score: 60,
-                streakDays: 2,
-                isCurrentUser: false
-            )
-        ]
-    }
-}
-
-// MARK: - Main View
-
-struct SocialModeView: View {
-    @EnvironmentObject var store: AppStore
-    @State private var mode: SocialMode = .cooperation
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-    @State private var groupGoal: GroupGoal?
-    @State private var members: [SocialMember] = []
-
-    private let repository: SocialGroupRepository
-
-    // ✅ 正式執行用 SupabaseSocialGroupRepository
-    init(repository: SocialGroupRepository = SupabaseSocialGroupRepository()) {
-        self.repository = repository
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                } else if let error = errorMessage {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 48))
-                            .foregroundColor(.orange)
-                        Text(error)
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    .padding()
-                } else {
-                    contentView
-                }
+    final class SupabaseSocialGroupRepository {
+        private let repo = SupabaseRepository.shared
+        private let client = SupabaseManager.shared.client
+        
+        // 解析 yyyy-MM-dd 或 ISO8601
+        private static let yyyyMMdd: DateFormatter = {
+            let df = DateFormatter()
+            df.calendar = Calendar(identifier: .gregorian)
+            df.locale = Locale(identifier: "en_US_POSIX")
+            df.timeZone = TimeZone(secondsFromGMT: 0)
+            df.dateFormat = "yyyy-MM-dd"
+            return df
+        }()
+        
+        private static func parseDate(_ s: String?) -> Date? {
+            guard let s, !s.isEmpty else { return nil }
+            if let d = yyyyMMdd.date(from: s) {
+                return d
             }
-            .navigationTitle("Social Boost")
-            .navigationBarTitleDisplayMode(.large)
-            .task {
-                await loadData()
+            if let d = ISO8601DateFormatter().date(from: s) {
+                return d
             }
+            return nil
         }
-    }
-
-    private var contentView: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Mode Picker
-                Picker("模式", selection: $mode) {
-                    ForEach(SocialMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-
-                // Group Goal Card
-                if let goal = groupGoal {
-                    GroupGoalCard(goal: goal)
-                        .padding(.horizontal)
-                }
-
-                // Mode Description
-                modeDescriptionView
-                    .padding(.horizontal)
-
-                // Members List
-                membersListView
-                    .padding(.horizontal)
-            }
-            .padding(.vertical)
-        }
-    }
-
-    private var modeDescriptionView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(modeDescription)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-        }
-    }
-
-    private var modeDescription: String {
-        let baseText: String
-        let typeAdjustment: String
-
-        switch mode {
-        case .cooperation:
-            baseText = "這裡不排名，只看大家一共推了多少，慢慢一起把進度推上去。"
-        case .competition:
-            baseText = "完成社群任務會拿積分，本週誰會是第一名？（但也要記得照顧自己哦）"
-        }
-
-        let typeRaw = store.procrastinationType.rawValue
-
-        if typeRaw.contains("完美") {
-            typeAdjustment = "不用完美，一點點前進就很棒了。"
-        } else if typeRaw.contains("死線") || typeRaw.contains("戰士") {
-            typeAdjustment = "提前一點點動起來就好，不用等到最後一刻。"
-        } else if typeRaw.contains("逃避") {
-            typeAdjustment = "每次完成一小步，都是很大的進步。"
-        } else if typeRaw.contains("決策") {
-            typeAdjustment = "先從最簡單的開始，慢慢來。"
-        } else {
-            typeAdjustment = ""
-        }
-
-        return baseText + (typeAdjustment.isEmpty ? "" : "\n\n" + typeAdjustment)
-    }
-
-    private var membersListView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(mode == .competition ? "排行榜" : "成員貢獻")
-                .font(.headline)
-                .padding(.horizontal, 4)
-
-            if mode == .competition {
-                competitionMembersList
-            } else {
-                cooperationMembersList
-            }
-        }
-    }
-
-    private var competitionMembersList: some View {
-        let sortedMembers = members.sorted { $0.score > $1.score }
-
-        return VStack(spacing: 8) {
-            ForEach(Array(sortedMembers.enumerated()), id: \.element.id) { index, member in
-                MemberRowCompetition(
-                    member: member,
-                    rank: index + 1
+        
+        /// 抓「目前使用者參與的所有 group_goals」，並順便把 progress 算好（用成員完成率平均）
+        func fetchGroupGoalsForCurrentUser() async throws -> (goals: [GroupGoal], membersByGroup: [UUID: [SocialMember]]) {
+            
+            // 1. 取得目前使用者 email
+            let session = try await client.auth.session
+            let myEmail = (session.user.email ?? "").lowercased()
+            
+            // 2. 抓這個 email 參與的所有 group_goals
+            let rows = try await repo.fetchGroupGoals(forEmail: myEmail)
+            
+            // 3. 逐個 group 抓參與者，算出平均完成率，更新 currentValue
+            var resultGoals: [GroupGoal] = []
+            var membersDict: [UUID: [SocialMember]] = [:]
+            
+            let colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E2"]
+            
+            for row in rows {
+                let deadlineDate = Self.parseDate(row.deadline) ?? Date()
+                let desc = row.description ?? ""
+                let mode = row.social_mode      // ✅ 不要再用 ??，它是非 optional
+                
+                // 先做一個基本 GroupGoal，等一下再用成員 completionRate 補上 currentValue
+                var goal = GroupGoal(
+                    id: row.id,
+                    title: row.title,
+                    description: desc.isEmpty ? "No description yet." : desc,
+                    targetValue: 100,      // 先固定 100，代表百分比
+                    currentValue: 0,       // 之後會用平均完成率 * 100 填
+                    unit: "%",
+                    deadline: deadlineDate,
+                    socialModeRaw: mode
                 )
-            }
-        }
-    }
-
-    private var cooperationMembersList: some View {
-        VStack(spacing: 8) {
-            ForEach(members) { member in
-                MemberRowCooperation(member: member)
-            }
-        }
-    }
-
-    private func loadData() async {
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            async let goal = repository.fetchCurrentGroupGoal()
-            async let membersData = repository.fetchMembers()
-
-            let (fetchedGoal, fetchedMembers) = try await (goal, membersData)
-
-            await MainActor.run {
-                self.groupGoal = fetchedGoal
-                self.members = fetchedMembers
-                self.isLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                self.errorMessage = "暫時抓不到社群資料，可以晚點再試看看"
-                self.isLoading = false
-            }
-        }
-    }
-}
-
-// MARK: - Group Goal Card
-
-struct GroupGoalCard: View {
-    let goal: GroupGoal
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(goal.title)
-                    .font(.title2)
-                    .fontWeight(.bold)
-
-                Text(goal.description)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            // Progress
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("進度")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("\(goal.currentValue) / \(goal.targetValue) \(goal.unit)")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                
+                // 抓這個 group 的成員
+                let participants = try await repo.fetchParticipants(groupId: row.id)
+                
+                let members: [SocialMember] = participants.enumerated().map { index, p in
+                    let email = p.email.lowercased()
+                    let name = p.email.split(separator: "@").first.map(String.init) ?? p.email
+                    let color = colors[index % colors.count]
+                    let isMe = (email == myEmail)
+                    
+                    let raw = p.progress ?? 0.0
+                    
+                    // ✅ 向下相容：
+                    // 如果 >1，當成舊的「分數 0~1000」
+                    // 如果 ≤1，當成新的「比例 0~1」
+                    let completionRate: Double
+                    let score: Int
+                    
+                    if raw > 1 {
+                        score = Int(raw)
+                        completionRate = min(max(raw / 1000.0, 0), 1)  // 142 -> 0.142
+                    } else {
+                        completionRate = min(max(raw, 0), 1)
+                        score = Int(completionRate * 1000)
+                    }
+                    
+                    return SocialMember(
+                        id: p.id,
+                        userId: p.user_id?.uuidString ?? "",
+                        displayName: name,
+                        avatarColorHex: color,
+                        procrastinationType: .unknown,
+                        completedGroupTasks: 0,
+                        contributedValue: 0,
+                        score: score,
+                        streakDays: 0,
+                        isCurrentUser: isMe,
+                        completionRate: completionRate
+                    )
                 }
+                
+                membersDict[row.id] = members
+                
+                // 用完成率平均，更新 group 的 currentValue
+                if !members.isEmpty {
+                    let avg = members.reduce(0.0) { $0 + $1.completionRate } / Double(members.count)
+                    goal.currentValue = Int(avg * 100)
+                }
+                
+                resultGoals.append(goal)
+            }
+            
+            return (resultGoals, membersDict)
+        }
+    }
 
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Rectangle()
-                            .fill(Color(.systemGray5))
-                            .frame(height: 12)
-                            .cornerRadius(6)
-
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color(hex: "#FF6B6B"), Color(hex: "#FFA07A")],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(width: geometry.size.width * goal.progress, height: 12)
-                            .cornerRadius(6)
+    // MARK: - Mock Repository（Preview 用）
+    
+    final class MockSocialGroupRepository {
+        func sampleData() -> (goals: [GroupGoal], membersByGroup: [UUID: [SocialMember]]) {
+            let colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", "#F7DC6F"]
+            
+            let coopId = UUID()
+            let compId = UUID()
+            
+            let coopGoal = GroupGoal(
+                id: coopId,
+                title: "一起讀完 3 章教科書",
+                description: "這週大家一起把總體經濟學第 10–12 章讀完。",
+                targetValue: 100,
+                currentValue: 60,
+                unit: "%",
+                deadline: Calendar.current.date(byAdding: .day, value: 5, to: Date()) ?? Date(),
+                socialModeRaw: "cooperate"
+            )
+            
+            let compGoal = GroupGoal(
+                id: compId,
+                title: "專注挑戰賽",
+                description: "這週看誰專注時間最長。",
+                targetValue: 100,
+                currentValue: 30,
+                unit: "%",
+                deadline: Calendar.current.date(byAdding: .day, value: 3, to: Date()) ?? Date(),
+                socialModeRaw: "compete"
+            )
+            
+            let coopMembers = [
+                SocialMember(
+                    id: UUID(),
+                    userId: "u1",
+                    displayName: "iris",
+                    avatarColorHex: colors[0],
+                    procrastinationType: .unknown,
+                    completedGroupTasks: 0,
+                    contributedValue: 0,
+                    score: 600,
+                    streakDays: 3,
+                    isCurrentUser: true,
+                    completionRate: 0.6
+                ),
+                SocialMember(
+                    id: UUID(),
+                    userId: "u2",
+                    displayName: "ander",
+                    avatarColorHex: colors[1],
+                    procrastinationType: .unknown,
+                    completedGroupTasks: 0,
+                    contributedValue: 0,
+                    score: 500,
+                    streakDays: 2,
+                    isCurrentUser: false,
+                    completionRate: 0.5
+                )
+            ]
+            
+            let compMembers = [
+                SocialMember(
+                    id: UUID(),
+                    userId: "u3",
+                    displayName: "iris",
+                    avatarColorHex: colors[2],
+                    procrastinationType: .unknown,
+                    completedGroupTasks: 0,
+                    contributedValue: 0,
+                    score: 800,
+                    streakDays: 4,
+                    isCurrentUser: true,
+                    completionRate: 0.8
+                ),
+                SocialMember(
+                    id: UUID(),
+                    userId: "u4",
+                    displayName: "ander",
+                    avatarColorHex: colors[3],
+                    procrastinationType: .unknown,
+                    completedGroupTasks: 0,
+                    contributedValue: 0,
+                    score: 650,
+                    streakDays: 3,
+                    isCurrentUser: false,
+                    completionRate: 0.65
+                )
+            ]
+            
+            return (
+                [coopGoal, compGoal],
+                [coopId: coopMembers, compId: compMembers]
+            )
+        }
+    }
+    
+    // MARK: - 主畫面：社群模式列表 + 模式切換
+    
+    struct SocialModeView: View {
+        @EnvironmentObject var store: AppStore
+        
+        @State private var mode: SocialMode = .cooperation
+        @State private var isLoading = false
+        @State private var errorMessage: String?
+        @State private var groupGoals: [GroupGoal] = []
+        @State private var membersByGroup: [UUID: [SocialMember]] = [:]
+        
+        private let repository = SupabaseSocialGroupRepository()
+        
+        // 依照目前模式（合作 / 競爭）篩選 group goals
+        private var filteredGoals: [GroupGoal] {
+            switch mode {
+            case .cooperation:
+                return groupGoals.filter { $0.isCooperation }
+            case .competition:
+                return groupGoals.filter { $0.isCompetition }
+            }
+        }
+        
+        var body: some View {
+            NavigationStack {
+                ZStack {
+                    if isLoading {
+                        ProgressView().scaleEffect(1.5)
+                    } else if let error = errorMessage {
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 48))
+                                .foregroundColor(.orange)
+                            Text(error)
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        .padding()
+                    } else {
+                        contentView
                     }
                 }
-                .frame(height: 12)
-
-                HStack {
-                    Text("\(Int(goal.progress * 100))%")
-                        .font(.caption)
+                .navigationTitle("Social Boost")
+                .navigationBarTitleDisplayMode(.large)
+                .task {
+                    await loadData()
+                }
+            }
+        }
+        
+        private var contentView: some View {
+            ScrollView {
+                VStack(spacing: 24) {
+                    
+                    // 模式切換：合作 / 競爭（只影響「顯示哪一些 group」）
+                    Picker("模式", selection: $mode) {
+                        ForEach(SocialMode.allCases) { m in
+                            Text(m.displayName).tag(m)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    
+                    if filteredGoals.isEmpty {
+                        Text("這個模式目前還沒有群組目標，可以先建立一個試試看 👀")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .padding()
+                    } else {
+                        VStack(spacing: 16) {
+                            ForEach(filteredGoals) { goal in
+                                NavigationLink {
+                                    GroupDetailView(groupGoal: goal)
+                                } label: {
+                                    GroupGoalCard(goal: goal)
+                                }
+                                
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+                .padding(.vertical)
+            }
+        }
+        
+        private func loadData() async {
+            isLoading = true
+            errorMessage = nil
+            
+            do {
+                let result = try await repository.fetchGroupGoalsForCurrentUser()
+                await MainActor.run {
+                    self.groupGoals = result.goals
+                    self.membersByGroup = result.membersByGroup
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "暫時抓不到社群資料，可以晚點再試看看"
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+    // MARK: - Group Goal Card（合作模式）
+    
+    struct GroupGoalCard: View {
+        let goal: GroupGoal
+        
+        var body: some View {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(goal.title)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text(goal.description)
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
-                    Spacer()
+                }
+                
+                // Progress
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("進度")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(goal.currentValue) / \(goal.targetValue) \(goal.unit)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Rectangle()
+                                .fill(Color(.systemGray5))
+                                .frame(height: 12)
+                                .cornerRadius(6)
+                            
+                            Rectangle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color(hex: "#FF6B6B"), Color(hex: "#FFA07A")],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: geometry.size.width * goal.progress, height: 12)
+                                .cornerRadius(6)
+                        }
+                    }
+                    .frame(height: 12)
+                    
+                    HStack {
+                        Text("\(Int(goal.progress * 100))%")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        if goal.daysRemaining > 0 {
+                            Text("剩下 \(goal.daysRemaining) 天")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("已到期")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(hex: "#FFF5E6"),
+                                Color(hex: "#FFE5CC")
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+        }
+    }
+    
+    // MARK: - Competition Summary Card（競爭模式）
+    
+    struct CompetitionSummaryCard: View {
+        let goal: GroupGoal
+        let members: [SocialMember]
+        
+        // 依分數高到低排序
+        private var sortedMembers: [SocialMember] {
+            members.sorted { $0.score > $1.score }
+        }
+        
+        // 找出自己 & 名次
+        private var me: (member: SocialMember, rank: Int)? {
+            guard let idx = sortedMembers.firstIndex(where: { $0.isCurrentUser }) else {
+                return nil
+            }
+            return (sortedMembers[idx], idx + 1)
+        }
+        
+        var body: some View {
+            VStack(alignment: .leading, spacing: 12) {
+                // 標題：目標名稱
+                Text(goal.title)
+                    .font(.title3.bold())
+                
+                // 自己的名次 & 分數
+                if let me {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("目前第 \(me.rank) 名")
+                            .font(.headline)
+                        
+                        Text("·")
+                            .foregroundColor(.secondary)
+                        
+                        Text("\(me.member.score) 分")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    if let first = sortedMembers.first, first.id != me.member.id {
+                        let diff = max(0, first.score - me.member.score)
+                        Text("距離第一名還差 \(diff) 分")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("你現在就是第一名！🔥")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
+                } else {
+                    Text("加入挑戰後就會顯示你的名次 👀")
+                        .font(.subheadline)
+                }
+                
+                // Deadline / 剩餘天數
+                HStack {
                     if goal.daysRemaining > 0 {
                         Text("剩下 \(goal.daysRemaining) 天")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     } else {
-                        Text("已到期")
+                        Text("本輪挑戰已結束")
                             .font(.caption)
                             .foregroundColor(.red)
                     }
-                }
-            }
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(hex: "#FFF5E6"),
-                            Color(hex: "#FFE5CC")
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
-        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
-    }
-}
-
-// MARK: - Member Row (Cooperation)
-
-struct MemberRowCooperation: View {
-    let member: SocialMember
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // Avatar
-            ZStack {
-                Circle()
-                    .fill(Color(hex: member.avatarColorHex))
-                    .frame(width: 50, height: 50)
-
-                Text(member.avatarInitial)
-                    .font(.headline)
-                    .foregroundColor(.white)
-            }
-
-            // Info
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(member.displayName)
-                        .font(.headline)
-
-                    if member.isCurrentUser {
-                        Text("You")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Color.blue)
-                            .cornerRadius(8)
-                    }
-
+                    
                     Spacer()
                 }
-
-                HStack(spacing: 8) {
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(hex: "#E0F2FE"),    // 淺藍
+                                Color(hex: "#DBEAFE")     // 再淺一點藍
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
+        }
+    }
+    
+    // MARK: - Member Row（合作）
+    
+    struct MemberRowCooperation: View {
+        let member: SocialMember
+        
+        var body: some View {
+            HStack(spacing: 12) {
+                // Avatar
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: member.avatarColorHex))
+                        .frame(width: 50, height: 50)
+                    
+                    Text(member.avatarInitial)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                }
+                
+                // Info
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(member.displayName)
+                            .font(.headline)
+                        
+                        if member.isCurrentUser {
+                            Text("You")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    HStack(spacing: 8) {
+                        Text(member.procrastinationTypeTag)
+                            .font(.caption)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(.systemGray5))
+                            .cornerRadius(4)
+                        
+                        Text("連續 \(member.streakDays) 天")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                // Stats
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("完成 \(Int(member.completionRate * 100))%")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    Text("一起慢慢推進 ✨")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(member.isCurrentUser ? Color.blue.opacity(0.1) : Color(.systemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(member.isCurrentUser ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
+        }
+    }
+    
+    // MARK: - Member Row（競爭）
+    
+    struct MemberRowCompetition: View {
+        let member: SocialMember
+        let rank: Int
+        
+        private var rankIcon: String? {
+            switch rank {
+            case 1: return "trophy.fill"
+            case 2: return "trophy.fill"
+            case 3: return "trophy.fill"
+            default: return nil
+            }
+        }
+        
+        private var rankColor: Color {
+            switch rank {
+            case 1: return Color(hex: "#FFD700")
+            case 2: return Color(hex: "#C0C0C0")
+            case 3: return Color(hex: "#CD7F32")
+            default: return .secondary
+            }
+        }
+        
+        var body: some View {
+            HStack(spacing: 12) {
+                // Rank
+                ZStack {
+                    if let icon = rankIcon {
+                        Image(systemName: icon)
+                            .font(.system(size: 24))
+                            .foregroundColor(rankColor)
+                    } else {
+                        Text("\(rank)")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .frame(width: 40)
+                
+                // Avatar
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: member.avatarColorHex))
+                        .frame(width: 50, height: 50)
+                    
+                    Text(member.avatarInitial)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                }
+                
+                // Info
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(member.displayName)
+                            .font(.headline)
+                        
+                        if member.isCurrentUser {
+                            Text("You")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                        }
+                        
+                        Spacer()
+                    }
+                    
                     Text(member.procrastinationTypeTag)
                         .font(.caption)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Color(.systemGray5))
                         .cornerRadius(4)
-
-                    Text("連續 \(member.streakDays) 天")
+                }
+                
+                Spacer()
+                
+                // Score
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(member.score) 分")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(rank <= 3 ? rankColor : .primary)
+                    
+                    Text("\(member.completedGroupTasks) 任務")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-
-            Spacer()
-
-            // Stats
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("\(member.completedGroupTasks) 任務")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                Text("\(member.contributedValue) 分鐘")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(member.isCurrentUser ? Color.blue.opacity(0.1) : Color(.systemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(member.isCurrentUser ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(member.isCurrentUser ? Color.blue.opacity(0.1) : Color(.systemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(member.isCurrentUser ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
     }
-}
-
-// MARK: - Member Row (Competition)
-
-struct MemberRowCompetition: View {
-    let member: SocialMember
-    let rank: Int
-
-    private var rankIcon: String? {
-        switch rank {
-        case 1: return "trophy.fill"
-        case 2: return "trophy.fill"
-        case 3: return "trophy.fill"
-        default: return nil
+    
+    // MARK: - Preview
+    
+    #Preview {
+        let store = AppStore()
+        store.procrastinationType = .unknown
+        
+        let mock = MockSocialGroupRepository().sampleData()
+        
+        return NavigationStack {
+            SocialModeView()
+                .environmentObject(store)
         }
     }
 
-    private var rankColor: Color {
-        switch rank {
-        case 1: return Color(hex: "#FFD700")
-        case 2: return Color(hex: "#C0C0C0")
-        case 3: return Color(hex: "#CD7F32")
-        default: return .secondary
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // Rank
-            ZStack {
-                if let icon = rankIcon {
-                    Image(systemName: icon)
-                        .font(.system(size: 24))
-                        .foregroundColor(rankColor)
-                } else {
-                    Text("\(rank)")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .frame(width: 40)
-
-            // Avatar
-            ZStack {
-                Circle()
-                    .fill(Color(hex: member.avatarColorHex))
-                    .frame(width: 50, height: 50)
-
-                Text(member.avatarInitial)
-                    .font(.headline)
-                    .foregroundColor(.white)
-            }
-
-            // Info
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(member.displayName)
-                        .font(.headline)
-
-                    if member.isCurrentUser {
-                        Text("You")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Color.blue)
-                            .cornerRadius(8)
-                    }
-
-                    Spacer()
-                }
-
-                Text(member.procrastinationTypeTag)
-                    .font(.caption)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color(.systemGray5))
-                    .cornerRadius(4)
-            }
-
-            Spacer()
-
-            // Score
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("\(member.score) 分")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(rank <= 3 ? rankColor : .primary)
-
-                Text("\(member.completedGroupTasks) 任務")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(member.isCurrentUser ? Color.blue.opacity(0.1) : Color(.systemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(member.isCurrentUser ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
-    }
-}
-
-// MARK: - Preview
-
-#Preview {
-    let store = AppStore()
-    store.procrastinationType = .unknown
-
-    return SocialModeView(repository: MockSocialGroupRepository())
-        .environmentObject(store)
-}

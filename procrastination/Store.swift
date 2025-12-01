@@ -186,14 +186,54 @@ final class AppStore: ObservableObject {
         // 3. 拿出剛改完的 task & goalId
         let updatedTask = goals[gi].subTasks[ti]
         let goalId = goals[gi].id
+        let goal   = goals[gi]
 
+        // 4. 同步到雲端：snapshot + 單筆 task
         // 4. 同步到雲端：snapshot + 單筆 task
         Task { [weak self] in
             guard let self else { return }
+
             await self.saveSnapshotToCloud()
             try? await SupabaseRepository.shared.upsertTask(updatedTask, goalId: goalId)
+
+            // ⭐ 如果這是社群目標，計算完成比例，更新到 group_participants.progress
+            if goal.isGroupGoal, let groupId = goal.groupId {
+                let allTasks = goal.subTasks
+                let total = allTasks.count
+                let completed = allTasks.filter { $0.isCompleted }.count
+
+                print("📊 [toggleTask] group goal: total=\(total), completed=\(completed)")
+
+                guard total > 0 else {
+                    print("⚠️ [toggleTask] total tasks == 0, skip score update")
+                    return
+                }
+
+                // ✅ 這裡改成「完成比例」0.0 ~ 1.0
+                let completionRatio = Double(completed) / Double(total)
+                print("📊 [toggleTask] completionRatio=\(completionRatio)")
+
+                do {
+                    let session = try await SupabaseManager.shared.client.auth.session
+                    guard let email = session.user.email, !email.isEmpty else {
+                        print("⚠️ [toggleTask] no email in session user")
+                        return
+                    }
+
+                    try await SupabaseRepository.shared.updateGroupParticipantProgress(
+                        groupId: groupId,
+                        email: email,
+                        progress: completionRatio      // ✅ 寫入比例
+                    )
+                    print("✅ [toggleTask] updated progress=\(completionRatio) for \(email)")
+                } catch {
+                    print("❌ [toggleTask] failed to update progress:", error)
+                }
+            }
         }
-    }
+
+
+            }
 
     func upsertThread(_ thread: ChatThread) {
         if let idx = conversations.firstIndex(where: { $0.id == thread.id }) {
@@ -252,3 +292,74 @@ final class AppStore: ObservableObject {
         await saveSnapshotToCloud()
     }
 }
+// MARK: - Group Goals Sync (from Supabase)
+
+extension AppStore {
+
+    /// 把 "yyyy-MM-dd" 的字串轉成 Date
+    fileprivate func parseYyyyMMdd(_ s: String?) -> Date? {
+        guard let s, !s.isEmpty else { return nil }
+        let df = DateFormatter()
+        df.calendar = Calendar(identifier: .gregorian)
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone(secondsFromGMT: 0)
+        df.dateFormat = "yyyy-MM-dd"
+        return df.date(from: s)
+    }
+
+    /// 從 Supabase 抓 group goals 並同步到本地 snapshot
+    func syncGroupGoalsFromCloud(forEmail email: String) async {
+        guard let uid = activeUserId, !uid.isEmpty else {
+            print("⛔️ syncGroupGoalsFromCloud: no activeUserId, skip")
+            return
+        }
+
+        print("☁️ syncGroupGoalsFromCloud 開始，email=\(email)")
+
+        do {
+            let rows = try await SupabaseRepository.shared.fetchGroupGoals(forEmail: email)
+
+            let existingGroupIds = Set(
+                goals.filter { $0.isGroupGoal }.compactMap { $0.groupId }
+            )
+
+            var added = 0
+
+            for row in rows {
+                if existingGroupIds.contains(row.id) {
+                    continue
+                }
+
+                let startDate = parseYyyyMMdd(row.start_date)
+                let deadline  = parseYyyyMMdd(row.deadline)
+
+                let newGoal = Goal(
+                    id: UUID(),
+                    title: row.title,
+                    icon: row.icon ?? "person.3.fill",
+                    colorHex: row.color_hex ?? "#B8C0FF",
+                    startDate: startDate,
+                    deadline: deadline,
+                    reminders: [],
+                    subTasks: [],
+                    createdAt: Date(),
+                    isGroupGoal: true,
+                    groupId: row.id,
+                    participantEmails: [],              // 之後可補 fetchParticipants
+                    socialModeRaw: row.social_mode
+                )
+
+                self.addGoal(newGoal)
+                added += 1
+            }
+
+            print("✅ syncGroupGoalsFromCloud 完成：新增 \(added) 個 group goal")
+
+        } catch {
+            print("❌ syncGroupGoalsFromCloud failed:", error)
+        }
+    }
+}
+
+
+

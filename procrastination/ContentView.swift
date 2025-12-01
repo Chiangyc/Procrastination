@@ -28,6 +28,11 @@ struct ContentView: View {
                     .task(id: authVM.currentUser?.id) {
                         // ✅ 每次換使用者時，跑一次 smoke 測試
                         await SupabaseRepository.shared.smokeInsertUserProfilesMinimal()
+                        
+                        // ✅ 同步這個使用者參與的 group goals 下來，幫他在本地建 isGroupGoal 的目標
+                                                if let email = authVM.currentUser?.email {
+                                                    await store.syncGroupGoalsFromCloud(forEmail: email)
+                                                }
                     }
             }
         }
@@ -65,7 +70,7 @@ struct ContentView: View {
                 .tabItem { Label("Activity", systemImage: "chart.bar.fill") }
                 .tag(3)
 
-            SocialModeView()
+            GroupListView()
                 .tabItem { Label("Social", systemImage: "person.3.fill") }
                 .tag(4)
         }
