@@ -31,14 +31,10 @@ struct procrastinationApp: App {
                 .environmentObject(store)
                 .environmentObject(authVM)
                 .environment(geminiService)
+                .environment(\.locale, .init(identifier: store.language.rawValue))
                 .task {
-                    // 1. 先讓 AuthViewModel 去恢復登入狀態（裡面會呼叫 store.switchUser）
-                        await authVM.restoreSessionOnLaunch()
-
-                        // 2. 如果有登入成功，而且有 email，就同步這個 email 參與的 group goals 下來
-                    if let email = authVM.currentUser?.email {
-                        await store.syncGroupGoalsFromCloud(forEmail: email)
-                    }
+                    // ✅ App 啟動後，嘗試從 Supabase 恢復 session
+                    await authVM.restoreSessionOnLaunch()
                 }
                 .onAppear {
                     // 只做本機通知授權，不再自動登入 Dev 帳號、也不自動 push 資料

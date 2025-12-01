@@ -221,7 +221,7 @@ struct TieBreakerView: View {
 
 struct QuestionCard: View {
     let index: Int
-    let text: String
+    let text: LocalizedStringKey
     @Binding var value: Int
 
     var body: some View {

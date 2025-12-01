@@ -2,6 +2,7 @@
 import Foundation
 import FirebaseAI
 import Observation
+import SwiftUI
 
 // MARK: - Errors
 
@@ -35,10 +36,14 @@ class GeminiService {
         preferences: PreferenceDTO,
         onboarding: Onboarding,
         workstyle: Workstyle,
-        type: ProcrastinationType
+        type: ProcrastinationType,
+        language: String
     ) async throws -> GoalBreakdownResponse {
         
         print("正在向 Gemini 發送請求...")
+        let langInstruction = (language == "en")
+                ? "Please output all content (chatReply and tasks) in English."
+                : "請使用繁體中文 (Traditional Chinese) 回覆所有的內容 (chatReply 與 tasks)。"
         
         // 1) 使用 DTO 組合偏好摘要
         let preferencesSummary = """
@@ -74,74 +79,66 @@ class GeminiService {
         
         // 3) Prompt：加入「依拖延類型拆解」的明確規則
         let prompt = """
-        You are a supportive, detail-oriented productivity coach. STRICTLY follow all constraints.
+        You are an expert Behavioral Productivity Coach.
+        Your goal is to create a realistic, actionable plan that overcomes the user's specific procrastination triggers.
 
-        ## The User's Goal
-        - Title: "\(goal.title)"
-        - Description: "\(goal.subTasks.first?.title ?? "No description provided.")"
-        - Deadline (inclusive): \(deadlineFormatted)
-        - Today's Date: \(todayFormatted)
+        ## 1. The Context
+        - **Goal:** "\(goal.title)"
+        - **Details:** "\(goal.subTasks.first?.title ?? "No description provided.")"
+        - **Deadline:** \(deadlineFormatted) (Inclusive)
+        - **Today:** \(todayFormatted)
+        - **Target Language:** Traditional Chinese (zh-TW).
 
-        ## The User's Profile (MUST be respected; if conflicts, user's preference wins)
-        The user is from a zh-TW app. Their procrastination archetype is stored in Chinese.
-        Interpret the archetype label and adapt your planning accordingly.
-
+        ## 2. The User Profile (Data)
+        - **Archetype:** "\(type.rawValue)"
+        - **Focus Span:** \(preferences.focusSpan) minutes
+        - **Daily Capacity:** \(workstyle.dailyHours) hours
+        - **Psychological Traits:**
         \(preferencesSummary)
 
-        ## Archetype-specific planning rules (MUST be IMPLEMENTED, not just repeated)
-        The user's procrastination archetype is: "\(type.rawValue)".
-        Below are concrete planning rules you MUST apply when creating and scheduling tasks.
-        If a perfectionist-type plan and a deadline-warrior-type plan for the SAME goal look very similar,
-        your answer is considered WRONG.
+        ## 3. STRATEGY GUIDE (How to handle the Archetype)
+        You MUST apply the following strategy based on the User's Archetype:
 
-        \(archetypePlanningRules)
+        ### IF Archetype is "完美主義者 (Perfectionist)"
+        - **Strategy:** Lower the bar. The first task MUST be non-intimidating (e.g., "Ugly Draft" or "Outline"). Use Time-Boxing.
+        - **Tone:** Soothing, encouraging, empathetic.
+        - **Task Naming Keywords:** "草稿 (Draft)", "快速瀏覽 (Quick scan)", "不完美初版 (Rough version)".
 
-        ## Output Format (JSON ONLY)
-        Return a single JSON object with exactly two keys: "chatReply" (string) and "tasks" (array).
+        ### IF Archetype is "死線戰士 (Deadline Fighter)"
+        - **Strategy:** Create Artificial Urgency. The first task MUST be a micro-step (<15m) to break friction. Front-load actionable tasks to TODAY.
+        - **Tone:** Energetic, urgent, pushy.
+        - **Task Naming Keywords:** "立刻開始 (Start Now)", "完成三行 (Write 3 lines)", "第一階段死線 (Stage 1 Deadline)".
 
-        ### 1) "tasks" (array of objects)
-        - Represent the FULL actionable plan.
-        - Each task object MUST have EXACTLY these 4 keys:
-          1. "title": String (clear, specific action; DO NOT micro-split a single step into many fragments)
-          2. "isCompleted": Boolean (always false)
-          3. "dueDate": String in "YYYY-MM-DD" format
-             - MUST be within [today=\(todayFormatted), deadline=\(deadlineFormatted)] inclusive.
-          4. "estimatedDuration": String, e.g., "25-35 minutes", "30 minutes", or "1 hour"
-             - Consider the user's typical focus span \(preferences.focusSpan).
-        - HARD LIMIT: For ANY calendar date, DO NOT output more than \(maxTasksPerDay) tasks total.
-        - DO NOT split one logical task across many tasks on the same day. Prefer combining into one concise task with a realistic duration window.
-        - Consider workstyle.available hours by weekday: \(workstyle.dailyHours). If daily hours are small, schedule fewer tasks for that day.
-        - VERY IMPORTANT:
-          - The structure, wording, and schedule of tasks MUST look noticeably different for different archetypes
-            (e.g., early "rough draft" for perfectionists vs. early easy warm-up + mini-deadlines for deadline-warriors).
+        ## 4. Execution Rules
+        - **Granularity:** Tasks must be sized according to the user's Focus Span. No vague tasks.
+        - **Scheduling:** Distribute tasks logically. Respect Daily Capacity & Max Tasks (\(maxTasksPerDay)).
+        - **Output Format:** RAW JSON ONLY (No markdown fences, no explanatory text).
 
-        ### 2) "chatReply" (string, user-facing)
-        - Friendly, encouraging, personalized.
-        - Reflect the user's archetype in tone and coaching:
-          - If type is 完美主義型 (perfectionist-type):
-            * Emphasize "rough first pass", progress over perfection, small safe steps.
-            * Use wording like "rough draft", "messy outline", "B-minus version".
-          - If type is 死線戰士型 (deadline-warrior-type / last-minute):
-            * Emphasize early small wins, mini-deadlines, and "quick starter today".
-            * Use wording like "10-minute starter", "mini-deadline", "today's small checkpoint".
-        - Present tasks as a bulleted list:
-          For each bullet: "- (MMM dd) <title> (Est: <duration>)"
-        - If the full plan has more than 5 tasks, ONLY list the first 3–5 tasks and add:
-          "Here are your first few steps! You can see the full plan on your home screen."
-        - Use "\\n" for newlines.
-
-        ### Example (shape only)
+        ## 5. JSON Structure
         {
-          "chatReply": "Awesome goal! ...",
+          "chatReply": "String. A strategic coaching message in Traditional Chinese (zh-TW).
+              - **CRITICAL CONSTRAINT**: DO NOT list specific daily tasks or dates here (Keep those for the 'tasks' array). Avoid Avoid excessive intimacy.
+              - **LENGTH**: Compact and punchy (approx. 150-250 Chinese characters).
+              - **STRUCTURE**:
+                1. **Insight**: 1-2 sentences explaining the 'Why' behind this plan based on their Archetype.
+                2. **The Roadmap**: Break the plan into 3 phases (Short/Mid/Long-term).
+                   - Give each phase a creative **Specific Action Name** (e.g., 'Phase 1: Dirty Draft Mode').
+                   - Briefly explain the **Core Activity** of each phase.
+                3. **Closing**: A final encouraging nudge.
+              - **FORMATTING**: Use bullet points and **Bold** for phase names to ensure scannability. Use \\n\\n to separate paragraphs.
+              - **ARCHETYPE LOGIC**:
+                - **Perfectionist**: Phase names should sound safe and low-pressure (e.g., 'Exploration Phase', 'Rough Outline'). Emphasize that quality comes later.
+                - **Deadline Fighter**: Phase names should sound active and milestone-based (e.g., 'Quick Start', 'Sprint 1'). Emphasize speed and momentum.",
+              
           "tasks": [
-            { "title": "First task", "isCompleted": false, "dueDate": "2025-10-25", "estimatedDuration": "30 minutes" }
+            {
+              "title": "String. Actionable step in Traditional Chinese (zh-TW).",
+              "isCompleted": false,
+              "dueDate": "YYYY-MM-DD",
+              "estimatedDuration": "String (e.g., '25 min')"
+            }
           ]
         }
-
-        IMPORTANT:
-        - Output RAW JSON only (no markdown fences).
-        - STRICTLY honor the date range and the per-day max \(maxTasksPerDay).
-        - STRICTLY align with the user's preferences AND the archetype-specific planning rules above; deviations are errors.
         """
         
         // 4) 呼叫 Gemini 並解析 JSON
@@ -375,7 +372,8 @@ class GeminiService {
         onboarding: Onboarding,
         workstyle: Workstyle,
         type: ProcrastinationType,
-        deadline: Date?
+        deadline: Date?,
+        language: String
     ) async throws -> GoalBreakdownResponse {
         
         var tempGoal = Goal(
@@ -395,7 +393,8 @@ class GeminiService {
             preferences: preferences,
             onboarding: onboarding,
             workstyle: workstyle,
-            type: type
+            type: type,
+            language: language
         )
         return response
     }

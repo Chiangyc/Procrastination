@@ -42,7 +42,7 @@ struct ActivityView: View {
                                 selectedPeriod = p
                                 periodOffset = 0
                             }) {
-                                Text(p.rawValue)
+                                Text(LocalizedStringKey(p.rawValue))
                                     .font(.subheadline).bold()
                                     .foregroundStyle(selectedPeriod == p ? .blue : .secondary)
                                     .padding(.horizontal, 16)
@@ -59,7 +59,8 @@ struct ActivityView: View {
                     // Date range + pager
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(titleForHeader(period: selectedPeriod, offset: periodOffset)).bold()
+                            Text(titleForHeader(period: selectedPeriod, offset: periodOffset))
+                                .bold()
                             Text(rangeTitle(start: range.start, end: range.end))
                                 .foregroundStyle(.secondary)
                         }
@@ -141,7 +142,7 @@ private extension ActivityView {
     }
 
     @ViewBuilder
-    func tasksCompletedCard(bars: [Int], caption: String, xLabels: [String]) -> some View {
+    func tasksCompletedCard(bars: [Int], caption: LocalizedStringKey, xLabels: [String]) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 RoundedRectangle(cornerRadius: 12)
@@ -350,10 +351,13 @@ private extension ActivityView {
         }
     }
 
-    func titleForHeader(period: ActivityPeriod, offset: Int) -> String {
+    func titleForHeader(period: ActivityPeriod, offset: Int) -> LocalizedStringKey {
         switch period {
-        case .weekly:  return offset == 0 ? "This week" : "\(-offset) week(s) ago"
-        case .monthly: return offset == 0 ? "This month" : "\(-offset) month(s) ago"
+        case .weekly:
+            return offset == 0 ? "This week" : "\(-offset) week(s) ago"
+            
+        case .monthly:
+            return offset == 0 ? "This month" : "\(-offset) month(s) ago"
         }
     }
 
@@ -379,7 +383,7 @@ private struct StatItem: View {
     let color: Color
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption2).foregroundStyle(.secondary)
+            Text(LocalizedStringKey(title)).font(.caption2).foregroundStyle(.secondary)
             Text(value).font(.title2).bold().foregroundStyle(color)
         }
     }

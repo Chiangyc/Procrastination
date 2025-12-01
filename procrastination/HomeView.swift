@@ -59,7 +59,7 @@ struct HomeView: View {
     }
 
     // MARK: - Banner 文案
-    private var bannerTitle: String {
+    private var bannerTitle: LocalizedStringKey {
         let p = todayProgress
         let typeRaw = store.procrastinationType.rawValue
 
@@ -97,17 +97,17 @@ struct HomeView: View {
 
         } else {
             switch p {
-            case 0:           return "Let’s kick things off 💪"
-            case ..<0.25:     return "Warming up… 🔄"
-            case ..<0.50:     return "Nice momentum! 🚀"
-            case ..<0.75:     return "Over halfway there 🙌"
-            case ..<1.0:      return "Almost done! 🔥"
-            default:          return "All done — great job! 🏆"
+            case 0:       return "Let's kick things off 💪"
+            case ..<0.25: return "Warming up… 🔄"
+            case ..<0.50: return "Nice momentum! 🚀"
+            case ..<0.75: return "Over halfway there 🙌"
+            case ..<1.0:  return "Almost done! 🔥"
+            default:      return "All done — great job! 🏆"
             }
         }
     }
 
-    private var bannerSubtitle: String {
+    private var bannerSubtitle: LocalizedStringKey {
         if todayTotalCount == 0 {
             return "No tasks scheduled today"
         } else {
@@ -188,7 +188,7 @@ struct HomeView: View {
     private var tasksSection: some View {
         VStack(spacing: 12) {
             if filteredTasksToday.isEmpty {
-                Text(emptyMessage)
+                Text(LocalizedStringKey(emptyMessage))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 100)
@@ -312,7 +312,7 @@ struct HomeView: View {
                     let isSelected = Calendar.current.isDate(day, inSameDayAs: selectedDate)
                     DayChip(
                         dayNumber: DateFormatter.dayNumber.string(from: day),
-                        weekday: DateFormatter.weekdayShort.string(from: day),
+                        weekday: getWeekdayString(from: day),
                         isSelected: isSelected
                     )
                     .onTapGesture { selectedDate = day }
@@ -320,6 +320,15 @@ struct HomeView: View {
             }
             .padding(.vertical, 6)
         }
+    }
+    
+    private func getWeekdayString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        // "EEE" 代表縮寫星期 (Mon, Tue / 週一, 週二)
+        formatter.dateFormat = "EEE"
+        // ✅ 關鍵：強制使用 AppStore 設定的語言
+        formatter.locale = Locale(identifier: store.language.rawValue)
+        return formatter.string(from: date)
     }
 }
 
@@ -351,7 +360,9 @@ private struct PersonalTaskRow: View {
             icon: iconName,
             iconColor: iconColor,
             title: task.title,
-            detail: task.isCompleted ? "Completed!" : "To-do",
+            detail: task.isCompleted
+                ? String(localized: "Completed!")
+                : String(localized: "To-do"),
             isOn: task.isCompleted,
             toggle: toggleTask,
             onFail: nil,

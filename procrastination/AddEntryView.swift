@@ -29,9 +29,6 @@ struct AddEntryView: View {
     @State private var startDate: Date = Date()
     @State private var showStartDatePicker = false
     
-    let icons = ["figure.walk", "drop.fill", "brain.head.profile", "heart.fill", "book.fill"]
-    let colors = ["Orange", "Blue", "Green", "Purple", "Red"]
-    
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -98,7 +95,7 @@ struct AddEntryView: View {
                                         .frame(width: 40, height: 40)
 
                                         VStack(alignment: .leading, spacing: 2) {
-                                            Text("Walking").bold()
+                                            Text(iconName(for: selectedIcon)).bold()
                                             Text("Icon").font(.caption).foregroundStyle(.secondary)
                                         }
                                         Spacer()
@@ -276,43 +273,73 @@ struct AddEntryView: View {
         .background(Color(uiColor: .systemBackground))
     }
     
+    private func iconName(for systemName: String) -> LocalizedStringKey {
+        switch systemName {
+        case "figure.walk": return "Walking"
+        case "drop.fill": return "Water"
+        case "brain.head.profile": return "Focus"
+        case "heart.fill": return "Health"
+        case "book.fill": return "Reading"
+        case "bolt.fill": return "Energy"
+        case "flame.fill": return "Burn"
+        case "leaf.fill": return "Nature"
+        case "sun.max.fill": return "Morning"
+        case "moon.fill": return "Sleep"
+        case "timer": return "Timer"
+        case "alarm.fill": return "Wake up"
+        case "pencil": return "Write"
+        case "checkmark.seal.fill": return "Goal"
+        case "cart.fill": return "Shopping"
+        case "dumbbell.fill": return "Workout"
+        case "bicycle": return "Cycling"
+        case "medal.fill": return "Achievement"
+        case "music.note": return "Music"
+        case "paintbrush.fill": return "Art"
+        default: return "Custom"
+        }
+    }
+    
     private func createGoal() -> Goal {
         var reminders: [Reminder] = []
         if addReminder {
             reminders.append(Reminder(time: reminderTime, repeatDaily: true))
         }
-        // 驗證：保存前確保 start <= deadline
+
         let finalStart = startDate
         let finalDeadline = startDate > deadline
             ? Calendar.current.date(byAdding: .day, value: 7, to: startDate)
             : deadline
-        
+
         let newGoal = Goal(
             title: goalTitle.isEmpty ? "未命名目標" : goalTitle,
             icon: selectedIcon,
             colorHex: selectedColorHex,
-            startDate: finalStart, deadline: finalDeadline ?? deadline,
+            startDate: finalStart,
+            deadline: finalDeadline ?? deadline,
             reminders: reminders,
             subTasks: [],
             createdAt: Date()
         )
         store.addGoal(newGoal)
+
         if addReminder {
-            NotificationManager.scheduleDailyReminder(id: newGoal.id.uuidString, title: newGoal.title, at: reminderTime)
+            NotificationManager.scheduleDailyReminder(id: newGoal.id.uuidString,
+                                                      title: newGoal.title,
+                                                      at: reminderTime)
         }
-        return newGoal
-        
+
         let thread = ChatThread(
-            title: newGoal.title,                  // 索引名稱 = 目標標題
+            title: newGoal.title,
             messages: [
-                .init(role: .assistant,
-                      text: "Hi! Tell me more about **\(newGoal.title)** and I’ll break it down into actionable steps for you. ✨")
+                .init(
+                    role: .assistant,
+                    text: "Hi! Tell me more about **\(newGoal.title)** and I’ll break it down into actionable steps for you. ✨"
+                )
             ],
             relatedGoalID: newGoal.id
         )
         store.upsertThread(thread)
 
-        // 也立即上傳到雲端（非必須，但推薦）
         Task {
             try? await SupabaseRepository.shared.upsertConversation(thread)
             if let first = thread.messages.first {
@@ -320,6 +347,7 @@ struct AddEntryView: View {
             }
         }
 
+        return newGoal
     }
 
     private func newGoalStartDate(_ goal: Goal) -> Date? {
@@ -405,7 +433,7 @@ struct AddEntryView: View {
 
 }
 
-private func colorName(for hex: String) -> String {
+private func colorName(for hex: String) -> LocalizedStringKey {
     switch hex {
     case "#BDCFFF": return "Skyblue"
     case "#B8C0FF": return "Blue"
@@ -527,13 +555,3 @@ private struct SystemColorPickerRow: View {
         }
     }
 }
-
-/*extension Color {
-    init(hex: String) {
-        self = Color(UIColor(hex: hex))
-    }
-    func toHex() -> String? {
-        UIColor(self).toHex()
-    }
-}*/
-

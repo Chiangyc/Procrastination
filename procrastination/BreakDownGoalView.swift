@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MarkdownUI
 
 // MARK: - BreakDownGoalView
 
@@ -38,7 +39,7 @@ struct BreakDownGoalView: View {
 
     /// 只取「非日記」threads
     private var nonJournalThreads: [ChatThread] {
-        store.conversations.filter { $0.id != Constants.journalThreadID }
+        store.conversations.filter {$0.isJournal != true}
     }
 
     /// 目前活躍對話的 index
@@ -201,7 +202,7 @@ struct BreakDownGoalView: View {
             // 沒帶目標 ID 的情況：用第一條「非日記」對話（如果有）
             if activeThreadID == nil {
                 activeThreadID = store.conversations
-                    .filter { $0.id != Constants.journalThreadID }
+                    .filter { $0.isJournal != true }
                     .first?.id
             }
         }
@@ -244,7 +245,8 @@ struct BreakDownGoalView: View {
                     onboarding: store.onboarding,
                     workstyle: store.workstyle,
                     type: store.procrastinationType,
-                    deadline: goal.deadline
+                    deadline: goal.deadline,
+                    language: store.language.rawValue
                 )
 
                 let subTasks = response.tasks
@@ -307,7 +309,8 @@ struct BreakDownGoalView: View {
                     onboarding: store.onboarding,
                     workstyle: store.workstyle,
                     type: store.procrastinationType,
-                    deadline: goal.deadline
+                    deadline: goal.deadline,
+                    language: store.language.rawValue
                 )
 
                 let subTasks = response.tasks
@@ -365,7 +368,7 @@ private struct ConversationPickerSheet: View {
 
     private var nonJournalThreads: [ChatThread] {
         store.conversations
-            .filter { $0.id != Constants.journalThreadID }
+            .filter { $0.isJournal != true }
             .sorted(by: { $0.lastUpdated > $1.lastUpdated })
     }
 
@@ -450,7 +453,12 @@ struct MessageRow: View {
                 HStack(alignment: .top) {
                     Image(systemName: "sparkles")
                         .foregroundStyle(.purple)
-                    Text(msg.text)
+                    Markdown(msg.text)
+                    .markdownTheme(.gitHub.text {
+                        ForegroundColor(.primary)
+                        BackgroundColor(.clear)
+                    })
+                    .textSelection(.enabled) // 讓使用者可以長按選取文字
                 }
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 14).fill(Color(.secondarySystemBackground)))
@@ -489,9 +497,9 @@ private struct SuggestionCard: View {
     var body: some View {
         Button(action: tap) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(s.title)
+                Text(LocalizedStringKey(s.title))
                     .font(.subheadline.bold())
-                Text(s.subtitle)
+                Text(LocalizedStringKey(s.subtitle))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)

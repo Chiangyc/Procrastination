@@ -8,7 +8,39 @@ enum AuthService {
     private static var client: SupabaseClient {
         SupabaseManager.shared.client
     }
+    
+    private static func mapSupabaseError(_ error: AuthError) -> AppAuthError {
+        // 你可以根據實際的 AuthError 結構調整這裡
+        let message = error.localizedDescription.lowercased()
 
+        if message.contains("user already registered")
+            || message.contains("email already registered")
+            || message.contains("duplicate key value") {
+            return .emailTaken
+        }
+
+        if message.contains("invalid login credentials")
+            || message.contains("invalid email or password") {
+            return .invalidCredentials
+        }
+
+        if message.contains("password") && message.contains("weak") {
+            return .weakPassword
+        }
+
+        if message.contains("banned") || message.contains("blocked") {
+            return .banned
+        }
+
+        if message.contains("too many requests")
+            || message.contains("rate limit") {
+            return .rateLimited
+        }
+
+        return .server
+    }
+
+    
     // MARK: - Register
     static func register(
         email: String,
@@ -46,10 +78,10 @@ enum AuthService {
         } catch let authError as AuthError {
                     // 🔥 這裡把 Supabase 的錯誤完整印出來
                     print("[AuthService.register] Supabase AuthError:", authError, authError.localizedDescription)
-                    throw authError    // 直接把原始錯誤丟出去
+                    throw mapSupabaseError(authError)    // 轉成我們自己的 AppAuthError
                 } catch {
                     print("[AuthService.register] unknown error:", error)
-                    throw error        // 不要硬轉成 .server，保留原始內容
+                    throw AppAuthError.server         // 不要硬轉成 .server，保留原始內容
                 }
     }
 
@@ -88,10 +120,10 @@ enum AuthService {
 
         } catch let authError as AuthError {
                     print("[AuthService.login] Supabase AuthError:", authError, authError.localizedDescription)
-                    throw authError
+                    throw mapSupabaseError(authError)   // 轉成我們自己的 AppAuthError
                 } catch {
                     print("[AuthService.login] unknown error:", error)
-                    throw error
+                    throw AppAuthError.server
                 }
     }
 

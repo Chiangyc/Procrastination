@@ -111,7 +111,7 @@ struct JournalView: View {
             ChatInputBar(
                 text: $input,
                 isLoading: isGenerating,
-                placeholder: "Write anything about your day…",
+                placeholder: String(localized: "Write anything about your day…"),
                 onSend: { send() }
             )
             .padding(.horizontal, 16)
@@ -129,12 +129,25 @@ struct JournalView: View {
             return existing.id
         }
 
+        // 1. 取得目前 App 設定的語言代碼 (例如 "zh-Hant" 或 "en")
+        let langCode = store.language.rawValue
+        
+        // 2. 嘗試找出該語言的翻譯檔案路徑
+        var bundle = Bundle.main
+        if let path = Bundle.main.path(forResource: langCode, ofType: "lproj") {
+            bundle = Bundle(path: path) ?? Bundle.main
+        }
+
+        // 3. 使用該 Bundle 進行翻譯 (如果找不到就會回傳原本的 Key)
+        let titleText = NSLocalizedString("Mood Journal", bundle: bundle, comment: "")
+        let messageText = NSLocalizedString("How are you feeling today? You can tell me anything.", bundle: bundle, comment: "")
+
         var thread = ChatThread(
-            title: "Mood Journal",
+            title: titleText, // 存入翻譯後的中文標題
             messages: [
                 ChatMessage(
                     role: .assistant,
-                    text: "How are you feeling today? You can tell me anything."
+                    text: messageText // 存入翻譯後的中文訊息
                 )
             ],
             relatedGoalID: nil,
@@ -376,11 +389,11 @@ struct JournalSuggestionCard: View {
     var body: some View {
         Button(action: tap) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(s.title)
+                Text(LocalizedStringKey(s.title))
                     .font(.subheadline.bold())
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
-                Text(s.subtitle)
+                Text(LocalizedStringKey(s.subtitle))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)

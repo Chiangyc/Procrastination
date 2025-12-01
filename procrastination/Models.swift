@@ -291,4 +291,5 @@ struct UserPreferences: Codable, Equatable {
     var weekdayWeekend: WeekdayWeekend = .same
     var focusSpan: FocusSpan = .m15_30
     var longTask: LongTaskPref = .chunks
+    var language: String = "zh-Hant"
 }

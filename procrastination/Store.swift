@@ -18,6 +18,23 @@ struct Onboarding: Codable {
 
 // MARK: - AppStore
 
+// MARK: - AppStore
+
+// 定義語言
+enum AppLanguage: String, CaseIterable, Codable, Identifiable {
+    case english = "en"
+    case chinese = "zh-Hant"
+    
+    var id: String { rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .english: return "English"
+        case .chinese: return "繁體中文"
+        }
+    }
+}
+
 @MainActor
 final class AppStore: ObservableObject {
 
@@ -35,6 +52,16 @@ final class AppStore: ObservableObject {
     @Published var onboarding: Onboarding = Onboarding()
     @Published var hasOnboarded: Bool = false
     @Published var procrastinationType: ProcrastinationType = .unknown
+    @Published var language: AppLanguage = .chinese {
+        didSet {
+            // 1. 存本地
+            UserDefaults.standard.set(language.rawValue, forKey: "appLanguage")
+            // 2. 更新到 preferences 結構 (為了上傳雲端)
+            preferences.language = language.rawValue
+            // 3. 觸發上傳
+            Task { await saveSnapshotToCloud() }
+        }
+    }
 
     /// 目前登入中的 Supabase user id（字串）
     @Published private(set) var activeUserId: String? = nil
@@ -88,6 +115,10 @@ final class AppStore: ObservableObject {
         // ⚠️ tasksToday 不直接用 snapshot 這個欄位，
         // 每次都「用 goals + 今天日期」重新算一次，避免不同版本不一致
         refreshTasksTodayFromGoals()
+
+        if let savedLang = AppLanguage(rawValue: snapshot.preferences.language) {
+            self.language = savedLang
+        }
 
         print("📥 apply snapshot: goals=\(goals.count), moods=\(moods.count)")
     }

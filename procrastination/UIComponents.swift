@@ -1,7 +1,8 @@
 import SwiftUI
+import UIKit
 
 struct Pill: View {
-    var text: String
+    var text: LocalizedStringKey
     var color: Color = .blue
     var body: some View {
         Text(text)
@@ -51,13 +52,15 @@ struct SectionHeader: View {
     var action: (() -> Void)?
     var body: some View {
         HStack {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.title3).bold()
             Spacer()
             if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .font(.callout).bold()
-                    .foregroundStyle(Color.secondary)
+                Button(action: action) {
+                    Text(LocalizedStringKey(actionTitle))
+                        .font(.callout).bold()
+                        .foregroundStyle(Color.secondary)
+                }
             }
         }
     }
@@ -82,7 +85,7 @@ struct SegmentedTabs: View {
     
     private func tabButton(for tab: Tab) -> some View {
         Button(action: { selection = tab }) {
-            Text(tab.rawValue)
+            Text(LocalizedStringKey(tab.rawValue))
                 .font(.subheadline).bold()
                 .foregroundStyle(textColor(for: tab))
                 .frame(maxWidth: .infinity)
@@ -130,8 +133,8 @@ struct DayChip: View {
 
 struct ProgressBanner: View {
     var progress: Double   // 0...1
-    var title: String
-    var subtitle: String
+    var title: LocalizedStringKey
+    var subtitle: LocalizedStringKey
 
     var body: some View {
         HStack(spacing: 16) {
@@ -416,7 +419,7 @@ struct BottomSheet: View {
 
 
 struct OptionChip: View {
-    let text: String
+    let text: LocalizedStringKey
     let isSelected: Bool
     let action: () -> Void
 
@@ -441,7 +444,7 @@ struct OptionChip: View {
 
 /// 單選題區塊（標題 + 選項群組），使用自動換行的 LazyVGrid
 struct SingleChoiceQuestion<T: CaseIterable & Identifiable & RawRepresentable & Hashable>: View where T.AllCases == Array<T>, T.RawValue == String {
-    let title: String
+    let title: LocalizedStringKey
     let options: [T]
     @Binding var selection: T   // changed from T? to T
 
@@ -455,7 +458,7 @@ struct SingleChoiceQuestion<T: CaseIterable & Identifiable & RawRepresentable & 
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(options) { opt in
                     OptionChip(
-                        text: opt.rawValue,
+                        text: LocalizedStringKey(opt.rawValue),
                         isSelected: selection == opt,
                         action: { selection = opt }
                     )

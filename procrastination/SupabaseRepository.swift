@@ -111,6 +111,7 @@ struct PreferencesDTO: Codable {
     var arrangeStrategy: String
     var focusSpan: String
     var weekdayWeekend: String
+    var language: String?
 }
 
 struct WorkstyleDTO: Codable {
