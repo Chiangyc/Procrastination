@@ -76,11 +76,12 @@ struct GroupGoal: Identifiable, Codable, Equatable {
     }
     
     /// ✅ 判斷是否已結束：deadline 在今天之前的才算結束
+    /// ✅ 判斷是否已結束：deadline 在今天「或之前」都算結束
     var isFinished: Bool {
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: Date())
         let startOfDeadline = calendar.startOfDay(for: deadline)
-        return startOfDeadline < startOfToday
+        return startOfDeadline <= startOfToday
     }
 }
     // MARK: - Supabase Repository（正式用）

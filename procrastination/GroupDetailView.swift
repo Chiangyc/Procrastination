@@ -1,6 +1,3 @@
-//
-//  GroupDetailView.swift
-//
 import SwiftUI
 
 struct GroupDetailView: View {
@@ -8,12 +5,15 @@ struct GroupDetailView: View {
 
     let groupGoal: GroupGoal
 
-    //@State private var mode: SocialMode = .cooperation
     @State private var isLoading = false
     @State private var members: [SocialMember] = []
+
+    // 🔐 防止按多次（本次進入畫面的 state）
+    @State private var hasStartedBreakdown = false
+
     private var mode: SocialMode {
-          groupGoal.isCooperation ? .cooperation : .competition
-      }
+        groupGoal.isCooperation ? .cooperation : .competition
+    }
 
     private let repo = SupabaseRepository.shared
 
@@ -21,11 +21,39 @@ struct GroupDetailView: View {
         store.goals.first { $0.groupId == groupGoal.id }
     }
 
+    /// ⭐ 確保每一位組員登入後也能看到拆解按鈕（建立 localGoal）
+    private func ensureLocalGoalExists() {
+        if localGoal != nil { return }
+
+        let newGoal = Goal(
+            id: UUID(),
+            title: groupGoal.title,
+            icon: "person.3.fill",
+            colorHex: "#FFE5CC",
+            startDate: Date(),
+            deadline: groupGoal.deadline,
+            reminders: [],
+            subTasks: [],
+            createdAt: Date(),
+            isGroupGoal: true,
+            groupId: groupGoal.id
+        )
+
+        store.goals.append(newGoal)
+    }
+
+    /// ✅ 是否顯示「開始拆解任務」按鈕
+    private var shouldShowBreakdownButton: Bool {
+        guard let lg = localGoal else { return false }
+        return lg.subTasks.isEmpty && !hasStartedBreakdown
+    }
+
+    // MARK: - BODY
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
 
-                // ✅ 直接依 groupGoal 的模式決定要顯示哪一種卡片
+                // 顯示合作/競爭卡片
                 if mode == .cooperation {
                     GroupGoalCard(goal: groupGoal)
                 } else {
@@ -35,7 +63,8 @@ struct GroupDetailView: View {
                     )
                 }
 
-                if let lg = localGoal, lg.subTasks.isEmpty {
+                // 拆解按鈕（只顯示一次）
+                if shouldShowBreakdownButton, let lg = localGoal {
                     NavigationLink {
                         BreakDownGoalView(
                             initialGoalID: lg.id,
@@ -53,10 +82,16 @@ struct GroupDetailView: View {
                         .foregroundColor(.white)
                         .cornerRadius(12)
                     }
+                    // ⬅️ 點下去的當下，把 state 設成 true → 回來後按鈕就不見
+                    .simultaneousGesture(
+                        TapGesture().onEnded {
+                            hasStartedBreakdown = true
+                        }
+                    )
                     .padding(.horizontal)
                 }
 
-                // Member List
+                // 成員列表
                 VStack(alignment: .leading, spacing: 12) {
                     Text(mode == .cooperation ? "成員進度" : "排行榜")
                         .font(.headline)
@@ -77,18 +112,24 @@ struct GroupDetailView: View {
             .padding(.top)
         }
         .navigationTitle(groupGoal.title)
+
+        // ⭐ 載入成員
         .task { await loadMembers() }
+
+        // ⭐ 第一次進來建立 localGoal
+        .onAppear {
+            ensureLocalGoalExists()
+        }
     }
 
-
+    // MARK: - Members
     private func loadMembers() async {
         isLoading = true
         do {
             members = try await repo.fetchMembers(forGroupId: groupGoal.id)
-            isLoading = false
         } catch {
-            isLoading = false
+            print("fetchMembers error:", error)
         }
+        isLoading = false
     }
 }
-
