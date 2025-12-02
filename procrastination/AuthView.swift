@@ -3,34 +3,59 @@ import SwiftUI
 struct AuthView: View {
     enum Mode { case login, register }
 
-    // ✅ 使用共用的環境 ViewModel，不再用 @StateObject
     @EnvironmentObject var authVM: AuthViewModel
+    // ✅ 1. 新增這個：我們需要存取 store 才能切換語言
+    @EnvironmentObject var store: AppStore
+    
     @State private var mode: Mode = .login
 
     var body: some View {
         VStack(spacing: 20) {
-            Text(mode == .login ? "登入" : "註冊")
+            
+            // ✅ 2. 新增語言切換按鈕 (放在最上面)
+            HStack {
+                Spacer()
+                Menu {
+                    Picker("Language", selection: $store.language) {
+                        ForEach(AppLanguage.allCases) { lang in
+                            Text(lang.displayName).tag(lang)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "globe")
+                        Text(store.language.displayName)
+                    }
+                    .font(.subheadline)
+                    .padding(8)
+                    .background(Capsule().fill(Color.gray.opacity(0.1)))
+                }
+            }
+            .padding(.bottom, 20) // 拉開一點距離
+            
+            Spacer()
+
+            // ✅ 3. 修改標題：改成英文 Key
+            Text(mode == .login ? "Log In" : "Sign Up")
                 .font(.largeTitle)
                 .bold()
 
-            // Email 欄位
+            // ✅ 4. 修改欄位提示：改成英文 Key
             TextField("Email", text: $authVM.email)
                 .textInputAutocapitalization(.never)
                 .keyboardType(.emailAddress)
                 .textFieldStyle(.roundedBorder)
 
-            // 註冊時才輸入用戶名稱
             if mode == .register {
-                TextField("用戶名稱", text: $authVM.displayName)
+                TextField("Display Name", text: $authVM.displayName) // 原本是 "用戶名稱"
                     .textFieldStyle(.roundedBorder)
             }
 
-            // 密碼欄位
-            SecureField("密碼", text: $authVM.password)
+            SecureField("Password", text: $authVM.password) // 原本是 "密碼"
                 .textFieldStyle(.roundedBorder)
 
-            // 登入或註冊按鈕
-            Button(mode == .login ? "登入" : "註冊") {
+            // ✅ 5. 修改按鈕文字
+            Button(mode == .login ? "Log In" : "Sign Up") {
                 Task {
                     if mode == .login {
                         await authVM.login()
@@ -42,25 +67,28 @@ struct AuthView: View {
             .buttonStyle(.borderedProminent)
             .disabled(authVM.isLoading)
 
-            // 錯誤訊息
+            // 錯誤訊息 (如果是後端回傳的英文錯誤，這裡可能需要另外處理翻譯，暫時不動)
             if let msg = authVM.errorMessage {
                 Text(msg)
                     .foregroundColor(.red)
                     .font(.footnote)
             }
 
-            // 切換登入／註冊
-            Button(mode == .login ? "沒有帳號？註冊" : "已有帳號？登入") {
+            // ✅ 6. 修改切換模式文字
+            Button(mode == .login ? "No account? Sign up" : "Have an account? Log in") {
                 mode = (mode == .login) ? .register : .login
             }
             .font(.footnote)
 
             // 成功登入後顯示暫時提示
             if let user = authVM.currentUser {
-                Text("Hi, \(user.displayName)")
+                // 這句我們之前翻過了，保持原樣即可 (Hi, %@)
+                Text("Hi, \(user.displayName ?? "User")")
                     .font(.title3)
                     .padding(.top)
             }
+            
+            Spacer() // 推到上面去，版面比較好看
         }
         .padding()
     }
