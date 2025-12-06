@@ -236,17 +236,20 @@ struct HomeView: View {
         HStack(alignment: .center) {
             Text("Home")
                 .font(.largeTitle.bold())
+                .foregroundColor(.themeBlue)
             Spacer()
             NavigationLink {
                 BreakDownGoalView()
             } label: {
                 Image(systemName: "text.bubble")
                     .font(.title3)
+                    .foregroundStyle(Color.themeBlue)
                     .frame(width: 44, height: 44)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.secondarySystemBackground))
+                            .fill(Color.white)
                     )
+                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
             }
             .buttonStyle(.plain)
         }
@@ -270,8 +273,9 @@ struct HomeView: View {
                         .frame(width: 44, height: 44)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(.secondarySystemBackground))
+                                .fill(Color.white)
                         )
+                        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                 }
                 .buttonStyle(.plain)
 
@@ -280,11 +284,13 @@ struct HomeView: View {
                 } label: {
                     Image(systemName: "gearshape.fill")
                         .font(.title3)
+                        .foregroundStyle(Color.themeBlue)
                         .frame(width: 44, height: 44)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(.secondarySystemBackground))
+                                .fill(Color.white)
                         )
+                        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                 }
                 .buttonStyle(.plain)
             }

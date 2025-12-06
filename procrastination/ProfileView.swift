@@ -56,13 +56,26 @@ struct ProfileView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Language / 語言").font(.headline)
                             
-                            // 這裡使用 $store.language
-                            Picker("Language", selection: $store.language) {
+                            HStack(spacing: 8) {
                                 ForEach(AppLanguage.allCases) { lang in
-                                    Text(lang.displayName).tag(lang)
+                                    Button {
+                                        store.language = lang
+                                    } label: {
+                                        Text(lang.displayName)
+                                            .font(.headline)
+                                            .foregroundStyle(store.language == lang ? .black : .secondary)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 10)
+                                            .background(
+                                                Capsule()
+                                                    .fill(store.language == lang ? Color.themeBlue : Color.gray.opacity(0.12))
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            .pickerStyle(.segmented)
+                            .padding(6)
+                            .background(Capsule().fill(Color.gray.opacity(0.12)))
                         }
                     }
 
@@ -130,11 +143,15 @@ struct ProfileSegmented: View {
             segmentButton(.characteristics)
         }
         .padding(6)
-        .background(Capsule().fill(Color.gray.opacity(0.12)))
+        .background(
+            Capsule().fill(Color.gray.opacity(0.12))   // 整條的淡灰底
+        )
     }
 
     @ViewBuilder
     private func segmentButton(_ tab: ProfileTab) -> some View {
+        let isSelected = (selection == tab)
+
         Button {
             withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
                 selection = tab
@@ -142,17 +159,22 @@ struct ProfileSegmented: View {
         } label: {
             Text(LocalizedStringKey(tab.rawValue))
                 .font(.headline)
-                .foregroundStyle(selection == tab ? .blue : .secondary)
+                .foregroundStyle(isSelected ? .black : .secondary)        // ✅ 選取黑字
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .fill(selection == tab ? Color.white : Color.clear)
+                        .fill(
+                            isSelected
+                            ? Color.themeBlue                             // ✅ 選取 themeBlue 底
+                            : Color.gray.opacity(0.12)                    // ✅ 未選取淡灰底
+                        )
                 )
         }
         .buttonStyle(.plain)
     }
 }
+
 
 // MARK: - Workstyle Section
 
@@ -248,8 +270,8 @@ private struct DaySliderRow: View {
                 .frame(width: 56, alignment: .leading)
                 .padding(.vertical, 8)
                 .padding(.horizontal, 10)
-                .background(Capsule().fill(Color.blue.opacity(0.12)))
-                .foregroundStyle(Color.blue)
+                .background(Capsule().fill(Color.themeBlue))
+                .foregroundStyle(Color.black)
 
             // 右邊：滑桿區
             VStack(spacing: 6) {
@@ -257,7 +279,7 @@ private struct DaySliderRow: View {
                     Text("0").font(.caption2).foregroundStyle(.secondary)
                     ZStack(alignment: .center) {
                         Slider(value: $value, in: 0...10, step: 0.5)
-                            .tint(.blue)
+                            .tint(Color.themeBlue)
                         Text(value.formatted(.number.precision(.fractionLength(1))))
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -305,7 +327,7 @@ private struct CharacteristicsSection: View {
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(Color.blue)
+                    .background(Color.themeDarkYellow)
                     .foregroundStyle(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 14))
             }

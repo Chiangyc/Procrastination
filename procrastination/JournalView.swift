@@ -60,15 +60,22 @@ struct JournalView: View {
                 // 下方輸入與建議
                 bottomComposer
             }
-            .navigationTitle("Mood Journal")
+//            .navigationTitle("Mood Journal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Mood Journal")
+                        .font(.headline.bold())
+                        .foregroundColor(.themeBlue)   // 這裡改標題顏色
+                }
+                
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showIndexSheet = true
                     } label: {
                         Image(systemName: "list.bullet.rectangle")
                             .font(.title3)
+                            .foregroundStyle(Color.themeBlue)
                             .frame(width: 36, height: 36)
                             .background(Circle().fill(Color(.secondarySystemBackground)))
                     }
@@ -338,9 +345,10 @@ private struct JournalIndexSheetSimple: View {
                                             Text(t.title.isEmpty ? "Mood Journal" : t.title)
                                                 .font(.body)
                                                 .lineLimit(1)
+                                                .foregroundStyle(.black)
                                             Text(dateFormatter.string(from: t.effectiveJournalDate))
                                                 .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                                .foregroundStyle(.black.opacity(0.6))
                                         }
                                         Spacer()
                                         if activeThreadID == t.id {
@@ -357,6 +365,7 @@ private struct JournalIndexSheetSimple: View {
                 }
             }
             .navigationTitle("Journal Index")
+            .tint(.black)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Close") { dismiss() }

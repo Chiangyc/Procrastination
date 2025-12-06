@@ -339,8 +339,15 @@ struct GroupGoal: Identifiable, Codable, Equatable {
                         contentView
                     }
                 }
-                .navigationTitle("Social Boost")
-                .navigationBarTitleDisplayMode(.large)
+//                .navigationTitle("Social Boost")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        Text("Social Boost")
+                            .font(.largeTitle.bold())
+                            .foregroundColor(Color.themeBlue)
+                    }
+                }
                 .task {
                     await loadData()
                 }
@@ -413,6 +420,7 @@ struct GroupGoal: Identifiable, Codable, Equatable {
                     Text(goal.title)
                         .font(.title2)
                         .fontWeight(.bold)
+                        .foregroundStyle(.black)
                     
                     Text(goal.description)
                         .font(.subheadline)
@@ -429,6 +437,7 @@ struct GroupGoal: Identifiable, Codable, Equatable {
                         Text("\(goal.currentValue) / \(goal.targetValue) \(goal.unit)")
                             .font(.subheadline)
                             .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
                     }
                     
                     GeometryReader { geometry in
@@ -439,13 +448,7 @@ struct GroupGoal: Identifiable, Codable, Equatable {
                                 .cornerRadius(6)
                             
                             Rectangle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color(hex: "#FF6B6B"), Color(hex: "#FFA07A")],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
+                                .fill(Color.themeDarkYellow)
                                 .frame(width: geometry.size.width * goal.progress, height: 12)
                                 .cornerRadius(6)
                         }
@@ -475,8 +478,7 @@ struct GroupGoal: Identifiable, Codable, Equatable {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(hex: "#FFF5E6"),
-                                Color(hex: "#FFE5CC")
+                                Color.themeYellow
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -511,12 +513,14 @@ struct GroupGoal: Identifiable, Codable, Equatable {
                 // 標題：目標名稱
                 Text(goal.title)
                     .font(.title3.bold())
+                    .foregroundStyle(.black)
                 
                 // 自己的名次 & 分數
                 if let me {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("目前第 \(me.rank) 名")
                             .font(.headline)
+                            .foregroundStyle(.black)
                         
                         Text("·")
                             .foregroundColor(.secondary)
@@ -534,7 +538,7 @@ struct GroupGoal: Identifiable, Codable, Equatable {
                     } else {
                         Text("你現在就是第一名！🔥")
                             .font(.caption)
-                            .foregroundColor(.orange)
+                            .foregroundColor(.red)
                     }
                 } else {
                     Text("加入挑戰後就會顯示你的名次 👀")
@@ -562,8 +566,7 @@ struct GroupGoal: Identifiable, Codable, Equatable {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(hex: "#E0F2FE"),    // 淺藍
-                                Color(hex: "#DBEAFE")     // 再淺一點藍
+                                Color(hex:"fbd5c0")
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -605,7 +608,7 @@ struct GroupGoal: Identifiable, Codable, Equatable {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
-                                .background(Color.blue)
+                                .background(Color.themeBlue)
                                 .cornerRadius(8)
                         }
                         
@@ -643,11 +646,11 @@ struct GroupGoal: Identifiable, Codable, Equatable {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(member.isCurrentUser ? Color.blue.opacity(0.1) : Color(.systemBackground))
+                    .fill(member.isCurrentUser ? Color.themeBlue.opacity(0.1) : Color(.systemBackground))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(member.isCurrentUser ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
+                    .stroke(member.isCurrentUser ? Color.themeBlue.opacity(0.3) : Color.clear, lineWidth: 1)
             )
         }
     }

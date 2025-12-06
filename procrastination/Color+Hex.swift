@@ -47,3 +47,12 @@ extension UIColor {
         return String(format: "#%06x", rgb)
     }
 }
+
+extension Color {
+    static let themeBlue   = Color(hex: "#83c4ca")   // 淺藍
+    static let themeYellow = Color(hex: "#fef6d7")   // 淺黃
+    static let themeDarkYellow = Color(hex: "#f0bd44")   // 淺黃
+//    static let themeBrown  = Color(hex: "#a4965f")   // 咖啡
+    static let themeBrown  = Color(hex: "#8f8353")   // 咖啡
+    static let themeDarkBlue  = Color(hex: "#0097b2")   // 深藍
+}

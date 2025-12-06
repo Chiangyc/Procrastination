@@ -102,8 +102,9 @@ struct BreakDownGoalView: View {
                     } label: {
                         Image(systemName: "ellipsis.bubble")
                             .font(.title3)
+                            .foregroundColor(Color.themeBlue)
                             .frame(width: 36, height: 36)
-                            .background(Circle().fill(Color(.secondarySystemBackground)))
+                            .background(Circle().fill(Color(.white)))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Switch conversation")
@@ -382,13 +383,14 @@ private struct ConversationPickerSheet: View {
                     } label: {
                         HStack(alignment: .top, spacing: 12) {
                             Image(systemName: "bubble.left.and.bubble.right.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.themeBlue)
                                 .frame(width: 28, height: 28)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(t.title).bold()
+                                    .foregroundStyle(.black)
                                 Text(t.messages.last?.text ?? "No messages yet")
                                     .lineLimit(2)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.black.opacity(0.6))
                                     .font(.caption)
                             }
                             Spacer()
@@ -417,6 +419,7 @@ private struct ConversationPickerSheet: View {
                 }
             }
             .navigationTitle("Conversations")
+            .tint(.black)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -452,7 +455,7 @@ struct MessageRow: View {
             if msg.role == .assistant {
                 HStack(alignment: .top) {
                     Image(systemName: "sparkles")
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(Color.themeDarkBlue)
                     Markdown(msg.text)
                     .markdownTheme(.gitHub.text {
                         ForegroundColor(.primary)

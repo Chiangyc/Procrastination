@@ -96,11 +96,11 @@ struct SegmentedTabs: View {
     }
     
     private func textColor(for tab: Tab) -> Color {
-        selection == tab ? .accentColor : .secondary
+        selection == tab ? .themeBrown : .secondary
     }
     
     private func buttonBackground(for tab: Tab) -> some View {
-        let backgroundColor = selection == tab ? Color.accentColor.opacity(0.12) : Color.gray.opacity(0.08)
+        let backgroundColor = selection == tab ? Color.themeYellow: Color.gray.opacity(0.08)
         return Capsule().fill(backgroundColor)
     }
     
@@ -126,7 +126,7 @@ struct DayChip: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18)
-                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                .stroke(isSelected ? Color.themeBlue : Color.clear, lineWidth: 2)
         )
     }
 }
@@ -141,14 +141,14 @@ struct ProgressBanner: View {
             // 左側進度環
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.3), lineWidth: 6)
+                    .stroke(Color.themeYellow.opacity(0.3), lineWidth: 6)
                 Circle()
                     .trim(from: 0, to: progress)
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .stroke(Color.themeYellow, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text("\(Int(progress * 100))%")
                     .font(.subheadline.bold())
-                    .foregroundColor(.white)
+                    .foregroundColor(.themeYellow)
             }
             .frame(width: 70, height: 70)
 
@@ -156,10 +156,10 @@ struct ProgressBanner: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(.themeYellow)
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.85))
+                    .foregroundColor(.themeYellow.opacity(0.85))
             }
 
             Spacer()
@@ -167,10 +167,15 @@ struct ProgressBanner: View {
         .padding(20)
         .frame(maxWidth: .infinity)
         .background(
-            LinearGradient(colors: [Color.blue, Color.purple],
-                           startPoint: .topLeading,
-                           endPoint: .bottomTrailing)
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            LinearGradient(
+                colors: [
+                    Color(hex: "#83c4ca"), // 淺藍
+                    Color(hex: "#83c4ca").opacity(0.8) // 或稍微變淡一點
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         )
         .shadow(color: Color.black.opacity(0.1), radius: 10, y: 5)
     }
@@ -326,9 +331,9 @@ struct BottomSheet: View {
                 } label: {
                     HStack(spacing: 16) {
                         ZStack {
-                            Circle().fill(Color.green)
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(.white)
+                            Circle() .fill(Color.themeYellow.opacity(0.6))
+                            Image(systemName: "flag.fill")
+                                .foregroundStyle(Color(hex: "#f0bd44"))
                                 .font(.title3)
                         }
                         .frame(width: 48, height: 48)
@@ -355,9 +360,9 @@ struct BottomSheet: View {
                 } label: {
                     HStack(spacing: 16) {
                         ZStack {
-                            Circle().fill(Color.blue)
+                            Circle().fill(Color.themeYellow)
                             Image(systemName: "person.3.fill")
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color(hex: "#f0bd44"))
                                 .font(.title3)
                         }
                         .frame(width: 48, height: 48)
@@ -431,12 +436,12 @@ struct OptionChip: View {
                 .padding(.vertical, 8)
                 .background(
                     Capsule()
-                        .fill(isSelected ? Color.accentColor.opacity(0.15) : Color(.secondarySystemBackground))
+                        .fill(isSelected ? Color.themeBlue.opacity(0.15) : Color(.secondarySystemBackground))
                 )
                 .overlay(
-                    Capsule().stroke(isSelected ? Color.accentColor : Color.gray.opacity(0.15), lineWidth: 1)
+                    Capsule().stroke(isSelected ? Color.themeBlue : Color.gray.opacity(0.15), lineWidth: 1)
                 )
-                .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                .foregroundStyle(isSelected ? Color.themeDarkBlue  : .primary)
         }
         .buttonStyle(.plain)
     }

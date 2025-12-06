@@ -69,6 +69,13 @@ struct ContentView: View {
                 .tabItem { Label("Social", systemImage: "person.3.fill") }
                 .tag(4)
         }
+        // ⭐ 這兩行讓 TabBar 背景變 themeYellow
+        .toolbarBackground(Color.themeYellow, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+
+        // ⭐ 這行讓「選到的」icon + 文字變 themeBrown
+        .tint(Color.themeBlue)
+        
         .onChange(of: selectedTab) { newValue in
             if newValue == 2 {
                 // 點到中間 + → 打開 bottom sheet，tab 保持在舊的

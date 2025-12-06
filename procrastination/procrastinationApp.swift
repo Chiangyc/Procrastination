@@ -12,6 +12,17 @@ struct procrastinationApp: App {
     @State private var geminiService: GeminiService
 
     init() {
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.titleTextAttributes = [
+            .foregroundColor: UIColor(Color.themeBlue)
+        ]
+        appearance.largeTitleTextAttributes = [
+            .foregroundColor: UIColor(Color.themeBlue)
+        ]
+
+        UINavigationBar.appearance().standardAppearance = appearance
+        UINavigationBar.appearance().scrollEdgeAppearance = appearance
         FirebaseApp.configure()
 
         // 先建立 AppStore

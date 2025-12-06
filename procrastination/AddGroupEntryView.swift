@@ -15,7 +15,7 @@ struct AddGroupEntryView: View {
     @State private var showIconPicker = false
     @State private var showColorPicker = false
     @State private var selectedIcon: String = "person.3.fill"
-    @State private var selectedColorHex: String = "#B8C0FF"
+    @State private var selectedColorHex: String = "#A5D8DC"
 
     // 日期
     @State private var startDate: Date = Date()
@@ -64,11 +64,12 @@ struct AddGroupEntryView: View {
                     Button(action: { dismiss() }) {
                         Image(systemName: "chevron.left")
                             .font(.title2)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.themeBrown)
                     }
                     Spacer()
                     Text("Create a Group Goal")
                         .font(.headline).bold()
+                        .foregroundColor(.themeBrown)
                     Spacer()
                     Color.clear.frame(width: 24, height: 24)
                 }
@@ -100,13 +101,16 @@ struct AddGroupEntryView: View {
                                 .font(.caption).bold()
                                 .foregroundStyle(.secondary)
 
-                            Picker("Mode", selection: $socialMode) {
-                                Text("Cooperation").tag(SocialMode.cooperation)
-                                Text("Competition").tag(SocialMode.competition)
+                            HStack(spacing: 8) {
+                                modeChip(title: "Cooperation", mode: .cooperation)
+                                modeChip(title: "Competition", mode: .competition)
                             }
-                            .pickerStyle(.segmented)
+                            .padding(4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 22)
+                                    .fill(Color.gray.opacity(0.08))
+                            )
                         }
-
                         // MARK: ICON & COLOR
                         VStack(alignment: .leading, spacing: 12) {
                             Text("ICON AND COLOR")
@@ -120,7 +124,7 @@ struct AddGroupEntryView: View {
                                         ZStack {
                                             Circle().fill(Color.gray.opacity(0.1))
                                             Image(systemName: selectedIcon)
-                                                .foregroundStyle(.purple)
+                                                .foregroundStyle(Color.themeDarkYellow)
                                         }
                                         .frame(width: 40, height: 40)
 
@@ -188,7 +192,7 @@ struct AddGroupEntryView: View {
                                         .foregroundStyle(.secondary)
                                     Spacer()
                                     Text(startDate.formatted(.dateTime.year().month().day()))
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(Color.themeBrown)
                                 }
                                 .padding(16)
                                 .background(Color.white)
@@ -207,7 +211,7 @@ struct AddGroupEntryView: View {
                                         .foregroundStyle(.secondary)
                                     Spacer()
                                     Text(deadline.formatted(.dateTime.year().month().day()))
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(Color.themeBrown)
                                 }
                                 .padding(16)
                                 .background(Color.white)
@@ -283,13 +287,13 @@ struct AddGroupEntryView: View {
                                 Text("Want to receive a notification?")
                                 Spacer()
                                 Toggle("", isOn: $addReminder)
-                                    .toggleStyle(SwitchToggleStyle(tint: .green))
+                                    .toggleStyle(SwitchToggleStyle(tint: Color(hex: "#4fd4c9")))
                             }
 
                             if addReminder {
                                 HStack(spacing: 12) {
                                     Image(systemName: "bell.fill")
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(Color.themeDarkYellow)
                                     DatePicker(
                                         "Reminder time",
                                         selection: $reminderTime,
@@ -322,7 +326,7 @@ struct AddGroupEntryView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(Color.blue)
+                    .background(Color.themeDarkYellow)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
@@ -357,6 +361,27 @@ struct AddGroupEntryView: View {
         }
         .background(Color(uiColor: .systemBackground))
     }
+    
+    private func modeChip(title: String, mode: SocialMode) -> some View {
+        Button {
+            socialMode = mode
+        } label: {
+            Text(title)
+                .font(.subheadline.bold())
+                .foregroundColor(socialMode == mode ? .themeBrown : .secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule().fill(
+                        socialMode == mode
+                        ? Color.themeYellow            // ✅ 選到時：themeYellow 底
+                        : Color.clear
+                    )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
 
     // MARK: - Participants
 

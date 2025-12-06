@@ -21,12 +21,14 @@ struct ActivityView: View {
         let stats = metrics(in: range, now: today)
         let bars = (selectedPeriod == .weekly)
             ? weeklyBars(weeksBack: 7, until: today)
-            : monthlyBars(monthsBack: 6, until: today)
+            : monthlyBars(monthsBack: 7, until: today)
 
         return VStack(spacing: 0) {
             // Header
             HStack {
-                Text("Activity").font(.largeTitle).bold()
+                Text("Activity")
+                    .font(.largeTitle).bold()
+                    .foregroundStyle(Color.themeBlue)
                 Spacer()
             }
             .padding(.horizontal, 20)
@@ -44,11 +46,11 @@ struct ActivityView: View {
                             }) {
                                 Text(LocalizedStringKey(p.rawValue))
                                     .font(.subheadline).bold()
-                                    .foregroundStyle(selectedPeriod == p ? .blue : .secondary)
+                                    .foregroundStyle(selectedPeriod == p ? Color.black : .secondary)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 8)
                                     .background(
-                                        Capsule().fill(selectedPeriod == p ? Color.white : Color.gray.opacity(0.1))
+                                        Capsule().fill(selectedPeriod == p ? Color.themeBlue  : Color.gray.opacity(0.1))
                                     )
                             }
                             .buttonStyle(.plain)
@@ -68,13 +70,13 @@ struct ActivityView: View {
                         HStack(spacing: 8) {
                             Button(action: { periodOffset -= 1 }) {
                                 Image(systemName: "chevron.left")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.themeBlue)
                                     .frame(width: 32, height: 32)
                                     .background(Circle().fill(Color.gray.opacity(0.1)))
                             }
                             Button(action: { if periodOffset < 0 { periodOffset += 1 } }) {
                                 Image(systemName: "chevron.right")
-                                    .foregroundStyle(periodOffset < 0 ? .secondary : .tertiary)
+                                    .foregroundStyle(periodOffset < 0 ? Color.themeBlue : Color.themeBlue)
                                     .frame(width: 32, height: 32)
                                     .background(Circle().fill(Color.gray.opacity(0.1)))
                             }
@@ -114,25 +116,38 @@ private extension ActivityView {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color.gray.opacity(0.1))
                     .frame(width: 48, height: 48)
-                    .overlay(Image(systemName: "eye").foregroundStyle(.secondary))
+                    .overlay(Image(systemName: "eye").foregroundStyle(.black))
 
                 VStack(alignment: .leading) {
                     Text("Task Achievement").bold()
                     Text("Summary").foregroundStyle(.secondary).font(.caption)
                 }
                 Spacer()
-                Image(systemName: "chevron.down")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.gray.opacity(0.1)))
+//                Image(systemName: "chevron.down")
+//                    .foregroundStyle(.secondary)
+//                    .frame(width: 32, height: 32)
+//                    .background(Circle().fill(Color.gray.opacity(0.1)))
+            }
+            let statColumns: [GridItem] = [
+                GridItem(.flexible(), alignment: .leading),
+                GridItem(.flexible(), alignment: .leading)
+            ]
+
+            LazyVGrid(columns: statColumns, spacing: 16) {
+                StatItem(title: "SUCCESS RATE",
+                         value: String(format: "%.0f%%", stats.successRate * 100),
+                         color: .green)
+                StatItem(title: "COMPLETED",
+                         value: "\(stats.completed)",
+                         color: .primary)
+                StatItem(title: "BEST STREAK DAY",
+                         value: "\(stats.bestStreakDays)",
+                         color: .primary)
+                StatItem(title: "FAILED",
+                         value: "\(stats.failed)",
+                         color: .red)
             }
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 16) {
-                StatItem(title: "SUCCESS RATE", value: String(format: "%.0f%%", stats.successRate * 100), color: .green)
-                StatItem(title: "COMPLETED", value: "\(stats.completed)", color: .primary)
-                StatItem(title: "BEST STREAK DAY", value: "\(stats.bestStreakDays)", color: .primary)
-                StatItem(title: "FAILED", value: "\(stats.failed)", color: .red)
-            }
         }
         .padding(20)
         .background(Color.white)
@@ -148,14 +163,22 @@ private extension ActivityView {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color.gray.opacity(0.1))
                     .frame(width: 48, height: 48)
-                    .overlay(Image(systemName: "chart.line.uptrend.xyaxis").foregroundStyle(.red))
+                    .overlay(Image(systemName: "chart.line.uptrend.xyaxis").foregroundStyle(.black))
 
                 VStack(alignment: .leading) {
                     Text("Tasks Completed").bold()
                     Text(caption).foregroundStyle(.secondary).font(.caption)
                 }
                 Spacer()
-                Pill(text: "🔥 Highest \(bars.max() ?? 0) tasks")
+                let badgeColor = Color(hex: "#FFD9D9")
+                Text("🔥 Highest \(bars.max() ?? 0) tasks")
+                    .font(.caption).bold()
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule().fill(badgeColor)
+                    )
+                    .foregroundStyle(Color.red)
             }
 
             HStack(alignment: .bottom, spacing: 10) {
@@ -163,7 +186,7 @@ private extension ActivityView {
                     let height = CGFloat(bars[i]) * 12 // 12pt per task
                     VStack(spacing: 6) {
                         Rectangle()
-                            .fill(Color.blue)
+                            .fill(Color.themeBlue)
                             .frame(width: 22, height: max(6, height))
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                         Text(xLabels[i])

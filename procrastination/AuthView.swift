@@ -22,16 +22,22 @@ struct AuthView: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
                         Image(systemName: "globe")
+                            .foregroundStyle(Color.themeDarkBlue)   // ← Icon 顏色
                         Text(store.language.displayName)
+                            .foregroundStyle(Color.themeDarkBlue)   // ← 文字顏色
                     }
                     .font(.subheadline)
-                    .padding(8)
-                    .background(Capsule().fill(Color.gray.opacity(0.1)))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule().fill(Color.gray.opacity(0.15)) // ← 按鈕底色
+                    )
                 }
             }
-            .padding(.bottom, 20) // 拉開一點距離
+            .padding(.bottom, 20)
+
             
             Spacer()
 
@@ -64,7 +70,12 @@ struct AuthView: View {
                     }
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .font(.headline)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(Color.themeBlue)
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
             .disabled(authVM.isLoading)
 
             // 錯誤訊息 (如果是後端回傳的英文錯誤，這裡可能需要另外處理翻譯，暫時不動)
@@ -79,6 +90,7 @@ struct AuthView: View {
                 mode = (mode == .login) ? .register : .login
             }
             .font(.footnote)
+            .foregroundStyle(Color.themeDarkBlue)
 
             // 成功登入後顯示暫時提示
             if let user = authVM.currentUser {
